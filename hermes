@@ -11,7 +11,7 @@
 
 set -uo pipefail
 
-VERSION="5.3.1"
+VERSION="5.4.0"
 CODENAME="Omni"
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
@@ -1694,6 +1694,99 @@ print(json.dumps(msgs))
 # ═════════════════════════════════════════════════════════════════════════════
 #  FIX — Auto-repair syntax errors and common issues
 # ═════════════════════════════════════════════════════════════════════════════
+# ─── Data Storage (Cloud Run) ────────────────────────────────────────────────
+cmd_data() {
+  local action="${1:-status}"
+  local cloudrun_url="https://ai-vitality-819208434965.us-west1.run.app"
+  
+  case "$action" in
+    status)
+      header
+      echo -e "${BOLD}💾 Data Storage — Cloud Run${N}\n"
+      echo -e "  ${W}Endpoint:${N} $cloudrun_url"
+      echo ""
+      
+      # Test connectivity
+      echo -n "  Testing connection... "
+      local resp=$(curl -s -w "\n%{http_code}" --max-time 10 "$cloudrun_url/health" 2>/dev/null)
+      local code=$(echo "$resp" | tail -1)
+      local body=$(echo "$resp" | head -n -1)
+      
+      if [ "$code" = "200" ]; then
+        echo -e "${G}✅ Connected${N}"
+      else
+        echo -e "${R}❌ Failed (HTTP $code)${N}"
+        echo -e "  ${D}Response: ${body:0:100}${N}"
+        return 1
+      fi
+      
+      echo ""
+      echo -e "  ${Y}Available endpoints:${N}"
+      echo -e "    ${C}/api/file-list${N}     List workspace files"
+      echo -e "    ${C}/chat${N}              AI chat interface"
+      echo -e "    ${C}/v1/chat/completions${N}  OpenAI-compatible API"
+      echo -e "    ${C}/solace/status${N}     Solace broker status"
+      ;;
+    
+    list)
+      header
+      echo -e "${BOLD}📂 Workspace Files${N}\n"
+      curl -s "$cloudrun_url/api/file-list" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+files=d.get('files',[])
+print(f'  Found {len(files)} files:\n')
+for f in files[:20]:
+    print(f'    📄 {f}')
+if len(files) > 20:
+    print(f'    ... and {len(files)-20} more')
+" 2>/dev/null || echo -e "  ${R}Failed to fetch file list${N}"
+      ;;
+    
+    save)
+      shift
+      local message="$*"
+      if [ -z "$message" ]; then
+        header
+        echo -e "${R}Usage: hermes data save <message>${N}"
+        return 1
+      fi
+      
+      header
+      echo -e "${BOLD}💾 Save Data${N}\n"
+      
+      # Save to in-memory LOGS store via worker endpoint
+      local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+      local payload=$(python3 -c "import json; print(json.dumps({'message': '''$message''', 'timestamp': '$timestamp', 'source': 'hermes-cli'}))")
+      
+      echo -n "  Saving to Cloud Run... "
+      local resp=$(curl -s -X POST "$cloudrun_url/api/log" \
+        -H "Authorization: Bearer $TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "$payload" 2>/dev/null)
+      
+      if echo "$resp" | grep -q "success\|saved\|ok"; then
+        echo -e "${G}✅ Saved${N}"
+      else
+        echo -e "${Y}⚠️  Saved to local storage (Cloud Run endpoint not available)${N}"
+        # Fallback to local storage
+        echo "$payload" >> "$HERMES_DIR/data_log.json"
+      fi
+      ;;
+    
+    *)
+      header
+      echo -e "${BOLD}💾 Data Storage Commands${N}\n"
+      echo -e "  ${C}hermes data status${N}    Check Cloud Run connection"
+      echo -e "  ${C}hermes data list${N}      List workspace files"
+      echo -e "  ${C}hermes data save <msg>${N}  Save message to storage"
+      echo ""
+      echo -e "  ${D}Storage: Cloud Run in-memory (resets on deploy)${N}"
+      ;;
+  esac
+}
+
+
 cmd_fix() {
   local target="${1:-all}"
   header
@@ -1862,7 +1955,8 @@ cmd_help() {
   echo ""
   echo -e "  ${C}System:${N}"
   echo -e "    ${BOLD}setup${N}                      Interactive API key setup"
-  echo -e "    ${BOLD}doctor${N}                     Full diagnostic (keys, endpoints, AI test)"
+  echo -e "    ${BOLD}doctor${N}                     Full diagnostic (keys, endpoints, AI test)
+    ${BOLD}data${N} [status|list|save]    Cloud Run data storage"
   echo -e "    ${BOLD}fix${N} [all|syntax|keys]      Auto-repair syntax errors & issues"
   echo -e "    ${BOLD}isdocker${N} [status|install|run] Container manager + Cloud Run"
   echo -e "    ${BOLD}termux${N} [info|install]      Termux system tools"
@@ -1897,6 +1991,7 @@ case "${1:-help}" in
   links)       shift; cmd_links "$@" ;;
   update)      shift; cmd_update "$@" ;;
   doctor)      shift; cmd_doctor "$@" ;;
+  data)        shift; cmd_data "$@" ;;
   isdocker)    shift; cmd_isdocker "$@" ;;
   fix)         shift; cmd_fix "$@" ;;
   help|--help|-h) cmd_help ;;
