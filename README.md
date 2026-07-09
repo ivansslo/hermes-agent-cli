@@ -1,89 +1,74 @@
-# ⚡ Hermes CLI v4.0
+# ⚡ Hermes Agent CLI v5.0.0 "Omni"
 
-**Full AI Agent CLI for Termux** — Unified CLI from all ivansslo projects.
+**Full AI Agent CLI for Termux** — integrates 100 repositories into one unified command-line tool.
 
-## Install (Termux)
+## 🚀 Quick Install (Termux)
 
 ```bash
-pkg install curl -y
-curl -sL https://raw.githubusercontent.com/ivansslo/hermes-agent-cli/main/hermes -o $PREFIX/bin/hermes
-chmod +x $PREFIX/bin/hermes
+curl -s https://raw.githubusercontent.com/ivansslo/hermes-agent-cli/main/install.sh | bash
+```
+
+## 📖 Commands
+
+```
+hermes setup              # Interactive API key setup
+hermes chat [model]       # Interactive AI chat (Groq/OpenRouter/Gemini/CF AI)
+hermes ask <question>     # Quick question (non-interactive)
+hermes code <desc>        # Generate code from description
+hermes crew [topic]       # CrewAI multi-agent research
+hermes embed <text>       # Voyage AI embedding
+hermes crawl <url>        # Crawl URL to markdown
+hermes firebase [action]  # Firebase Firestore operations
+hermes models             # List all AI models
+hermes status             # Full system health check
+hermes deploy [worker]    # Deploy to existing CF Workers
+hermes clone [repo|all]   # Clone repositories
+hermes push [dir] [msg]   # Push to GitHub
+hermes termux [action]    # Termux system tools
+hermes links              # Show all URLs
+hermes update             # Update CLI
+```
+
+## 🏗️ Projects Integrated
+
+| Project | Description |
+|---------|-------------|
+| Solace-Hermes-Project | CF Workers Gateway (25+ endpoints) |
+| ai-vitality | AI Studio + Firebase |
+| roadfx-full-stack | Express + Firebase Hosting |
+| roadfx-ai-stack | Worker UI (158KB) |
+| solace-crewai-cli | CrewAI multi-agent |
+| codex-master-ai-api | 15+ models API |
+| hermes-agent | Python agent framework |
+| droid-ai-toolkit | Android AI toolkit |
+| crawl4ai | Web crawler |
+| Cloud Run App | ai-vitality on GCP |
+
+## 🔑 Supported Providers
+
+- ⚡ **Groq** — Free, ultra-fast (Llama 3.3 70B, Qwen3 32B, etc.)
+- 🌐 **OpenRouter** — 100+ models (GPT-4o, Claude, Gemini, DeepSeek)
+- 💎 **Gemini** — Direct Google AI (2.5 Flash/Pro)
+- ☁️ **CF AI** — Cloudflare AI Factory (60 models)
+- 🔗 **Gateway** — Hermes Gateway proxy
+- 🖥️ **Cloud Run** — GCP Cloud Run app
+
+## 🌐 Endpoints
+
+- Dashboard: `hermes-cloudflare.certveis.workers.dev/dashboard`
+- Chat: `hermes-cloudflare.certveis.workers.dev/chat`
+- Cloud Run: `ai-vitality-819208434965.us-west1.run.app`
+- Firebase: `planning-with-ai-36675.web.app`
+
+## 📱 Install on Termux
+
+```bash
+pkg install curl
+curl -s https://raw.githubusercontent.com/ivansslo/hermes-agent-cli/main/install.sh | bash
 hermes setup
+hermes status
 ```
 
-## Quick Start
+---
 
-```bash
-hermes chat          # Interactive AI chat
-hermes ask "question" # Quick AI answer
-hermes crew "topic"  # CrewAI research crew
-hermes crawl <url>   # Web crawl → markdown
-hermes scan          # Health-check all AI models
-hermes status        # Check all connections
-hermes links         # Show all live URLs
-```
-
-## Commands
-
-### 🤖 AI
-| Command | Description |
-|---------|-------------|
-| `hermes chat [model]` | Interactive AI chat with conversation |
-| `hermes ask <question>` | Quick single question |
-| `hermes crew [topic]` | Run CrewAI research crew (Researcher→Analyst→Writer) |
-| `hermes crawl <url>` | Crawl URL to markdown |
-| `hermes models` | List 17+ available models |
-| `hermes scan` | Health-check all models with latency |
-
-### 🔧 Manage
-| Command | Description |
-|---------|-------------|
-| `hermes setup` | First-time setup + connection test |
-| `hermes config [key] [val]` | View/set configuration |
-| `hermes status` | Check all connections (CF, Cloud Run, AI, GitHub) |
-| `hermes links` | Show all live URLs |
-
-### 📦 Git & Deploy
-| Command | Description |
-|---------|-------------|
-| `hermes clone [repo]` | Clone/sync repos from GitHub |
-| `hermes push [repo] [msg]` | Push changes |
-| `hermes deploy cf` | Deploy to Cloudflare Workers |
-| `hermes deploy firebase` | Deploy to Firebase Hosting |
-
-### 📱 Termux
-| Command | Description |
-|---------|-------------|
-| `hermes install-deps` | Install python, nodejs, wrangler, firebase-tools |
-| `hermes update` | Update CLI to latest |
-
-## AI Providers
-
-| Provider | Models | Speed |
-|----------|--------|-------|
-| ⚡ Groq | Llama 3.3 70B, Qwen3, Scout, GPT-OSS, Compound | Ultra-fast |
-| 🌐 OpenRouter | Gemini 2.5, GPT-4o, Claude, DeepSeek R1 | Fast |
-| 💎 Gemini | 2.5 Flash, 2.5 Pro (direct) | Fast |
-| ☁️ Gateway | All models via Hermes Gateway | Depends |
-
-## Integrated Projects
-
-- [Solace-Hermes-Project](https://github.com/ivansslo/Solace-Hermes-Project) — CF Workers Gateway
-- [ai-vitality](https://github.com/ivansslo/ai-vitality) — AI Studio + Firebase
-- [roadfx-full-stack](https://github.com/ivansslo/roadfx-full-stack) — Express + Firebase
-- [roadfx-ai-stack](https://github.com/ivansslo/roadfx-ai-stack) — Worker UI
-- [solace-crewai-cli](https://github.com/ivansslo/solace-crewai-cli) — CrewAI
-- [Cloud Run](https://ai-vitality-819208434965.us-west1.run.app) — Live app
-
-## Config
-
-Keys stored in `~/.hermes/.keys`:
-```
-TOKEN=hk-rocspace-2026
-GROQ_KEY=gsk_...
-OR_KEY=sk-or-v1-...
-GEMINI_KEY=AIzaSy...
-GITHUB_PAT=github_pat_...
-DEFAULT_MODEL=llama-3.3-70b-versatile
-DEFAULT_PROVIDER=groq
-```
+by Ivan Ssl (ivansslo) — v5.0.0 "Omni"
