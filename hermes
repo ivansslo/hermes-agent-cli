@@ -11,7 +11,7 @@
 
 set -uo pipefail
 
-VERSION="5.3.0"
+VERSION="5.3.1"
 CODENAME="Omni"
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
@@ -35,8 +35,13 @@ AI_STUDIO_URL="https://aistudio.google.com/apps/c19a9112-567a-45eb-9d90-af6e02e3
 AI_STUDIO_PROMPT_URL="https://aistudio.google.com/prompts/new_chat"
 
 # ─── Firebase ────────────────────────────────────────────────────────────────
-FIREBASE_PROJECT="planning-with-ai-36675"
-FIREBASE_API_KEY="AIzaSyAPH8DG8Ji6Zjcid3s6qtnU9J8qBKGrpOQ"
+FIREBASE_PROJECT="rofai-agent"
+FIREBASE_API_KEY="AIzaSyAJBjhU9OEC9vX8jcHX6LUvwXkYOctRYuo"
+FIREBASE_AUTH_DOMAIN="rofai-agent.firebaseapp.com"
+FIREBASE_STORAGE_BUCKET="rofai-agent.firebasestorage.app"
+FIREBASE_MESSAGING_SENDER_ID="864507972707"
+FIREBASE_APP_ID="1:864507972707:web:e6ff0fdab70f675fb17c56"
+FIREBASE_MEASUREMENT_ID="G-3BD4H4VY4E"
 
 # ─── GCP / Cloud Run ────────────────────────────────────────────────────────
 GCP_PROJECT="819208434965"
@@ -174,6 +179,7 @@ cmd_config() {
   echo -e "  ${W}Links Hub:${N}   $LINKS_HUB"
   echo -e "  ${W}Cloud Run:${N}   $CLOUDRUN"
   echo -e "  ${W}Firebase:${N}    $FIREBASE_PROJECT"
+  echo -e "  ${W}AI Studio:${N}  $AI_STUDIO_URL"
   echo ""
   echo -e "  ${BOLD}Keys:${N}"
   for k in TOKEN GROQ_KEY OR_KEY GEMINI_KEY CF_TOKEN CF_ACCOUNT GITHUB_PAT MONGO_URI VOYAGE_KEY SOLACE_URL; do
@@ -802,22 +808,32 @@ cmd_firebase() {
 
   case "$action" in
     status)
-      info "Project: $FIREBASE_PROJECT"
-      info "API Key: ${FIREBASE_API_KEY:0:20}..."
+      echo -e "  ${Y}── Project Info ──${N}"
+      echo -e "    Project ID:      ${C}${FIREBASE_PROJECT}${N}"
+      echo -e "    Auth Domain:     ${FIREBASE_AUTH_DOMAIN}"
+      echo -e "    Storage Bucket:  ${FIREBASE_STORAGE_BUCKET}"
+      echo -e "    App ID:          ${FIREBASE_APP_ID}"
+      echo -e "    Analytics:       ${FIREBASE_MEASUREMENT_ID}"
       echo ""
-      local resp=$(curl -s --max-time 10 "https://firestore.googleapis.com/v1/projects/$FIREBASE_PROJECT/databases/(default)/documents/chats?key=$FIREBASE_API_KEY&pageSize=5")
+      echo -e "  ${Y}── Firestore Data ──${N}"
+      local resp=$(curl -s --max-time 10 "https://firestore.googleapis.com/v1/projects/$FIREBASE_PROJECT/databases/(default)/documents?pageSize=5&key=$FIREBASE_API_KEY" 2>/dev/null)
       echo "$resp" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 docs=d.get('documents',[])
-print(f'  Chats in Firestore: {len(docs)}')
-for doc in docs[:5]:
-    name=doc.get('name','').split('/')[-1]
-    fields=doc.get('fields',{})
-    sender=fields.get('sender',{}).get('stringValue','?')
-    text=fields.get('text',{}).get('stringValue','?')[:60]
-    print(f'    📝 {sender}: {text}...')
-" 2>/dev/null || warn "Cannot reach Firestore (check API key permissions)"
+if docs:
+    print(f'  Found {len(docs)} documents:')
+    for doc in docs[:5]:
+        name=doc.get('name','').split('/')[-1]
+        print(f'    📄 {name}')
+else:
+    print('  No documents found (or access denied)')
+" 2>/dev/null || warn "Cannot reach Firestore"
+      echo ""
+      echo -e "  ${Y}── Quick Commands ──${N}"
+      echo -e "    ${BOLD}hermes firebase save <msg>${N}    Save to Firestore"
+      echo -e "    ${BOLD}hermes firebase deploy${N}        Deploy to Hosting"
+      echo -e "    ${BOLD}hermes firebase config${N}        Show web config"
       ;;
     save)
       shift
@@ -826,11 +842,35 @@ for doc in docs[:5]:
       local resp=$(curl -s --max-time 10 -X POST \
         "https://firestore.googleapis.com/v1/projects/$FIREBASE_PROJECT/databases/(default)/documents/chats?key=$FIREBASE_API_KEY" \
         -H "Content-Type: application/json" \
-        -d "{\"fields\":{\"sender\":{\"stringValue\":\"hermes-cli\"},\"text\":{\"stringValue\":\"$msg\"}}}")
-      echo "$resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print('  ✅ Saved:', d.get('name','unknown'))" 2>/dev/null
+        -d "{\"fields\":{\"sender\":{\"stringValue\":\"hermes-cli\"},\"text\":{\"stringValue\":\"$msg\"},\"timestamp\":{\"timestampValue\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}}}")
+      echo "$resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print('  ✅ Saved:', d.get('name','unknown').split('/')[-1])" 2>/dev/null
+      ;;
+    deploy)
+      echo -e "  ${B}Deploying to Firebase Hosting...${N}\n"
+      if ! command -v firebase &>/dev/null; then
+        warn "Firebase CLI not installed"
+        echo -e "  ${D}Install: npm install -g firebase-tools${N}"
+        return 1
+      fi
+      cd "$HERMES_WORKSPACE" 2>/dev/null || { err "Workspace not found"; return 1; }
+      firebase deploy --project "$FIREBASE_PROJECT" 2>&1 | sed 's/^/    /'
+      ;;
+    config)
+      echo -e "  ${Y}── Firebase Web Config ──${N}\n"
+      cat << EOF
+const firebaseConfig = {
+  apiKey: "${FIREBASE_API_KEY}",
+  authDomain: "${FIREBASE_AUTH_DOMAIN}",
+  projectId: "${FIREBASE_PROJECT}",
+  storageBucket: "${FIREBASE_STORAGE_BUCKET}",
+  messagingSenderId: "${FIREBASE_MESSAGING_SENDER_ID}",
+  appId: "${FIREBASE_APP_ID}",
+  measurementId: "${FIREBASE_MEASUREMENT_ID}"
+};
+EOF
       ;;
     *)
-      echo -e "  ${W}Commands:${N} status, save <message>"
+      echo -e "  ${W}Commands:${N} status, save <message>, deploy, config"
       ;;
   esac
 }
@@ -1203,6 +1243,7 @@ cmd_doctor() {
   [ -n "$VOYAGE_KEY" ] && check "VOYAGE_KEY" "ok" "${VOYAGE_KEY:0:12}..." || check "VOYAGE_KEY" "warn" "not set"
   [ -n "$MONGO_URI" ] && check "MONGO_URI" "ok" "configured" || check "MONGO_URI" "warn" "not set"
   [ -n "$SOLACE_URL" ] && check "SOLACE_URL" "ok" "configured" || check "SOLACE_URL" "warn" "not set"
+  [ -n "$FIREBASE_API_KEY" ] && check "FIREBASE_API_KEY" "ok" "Project: $FIREBASE_PROJECT" || check "FIREBASE_API_KEY" "fail" "not set"
   echo ""
 
   # ── 3. Live Endpoints ──
