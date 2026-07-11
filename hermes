@@ -77,7 +77,7 @@ MONGO_URI="${MONGO_URI:-}"
 VOYAGE_KEY="${VOYAGE_KEY:-}"
 SOLACE_URL="${SOLACE_URL:-}"
 ISDOCKER_GEMINI_KEY="${ISDOCKER_GEMINI_KEY:-AQ.Ab8RN6K7ZJCEkGVtIVU38jjbopXeJpITy84Vxzup0ZeoTfJIcA}"
-MODEL="${MODEL:-}"
+MODEL="${MODEL:-llama-3.3-70b-versatile}"
 PROVIDER="${PROVIDER:-groq}"
 
 # ─── Auto-select model per provider ──────────────────────────────────────────
