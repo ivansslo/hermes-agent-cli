@@ -72,7 +72,7 @@ GEMINI_KEY="${GEMINI_KEY:-}"
 CF_TOKEN="${CF_TOKEN:-}"
 CF_AI_TOKEN="${CF_AI_TOKEN:-}"
 CF_ACCOUNT="${CF_ACCOUNT:-}"
-GITHUB_PAT="${GITHUB_PAT:-}"
+GITHUB_PAT="${GITHUB_PAT:-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}"
 MONGO_URI="${MONGO_URI:-}"
 VOYAGE_KEY="${VOYAGE_KEY:-}"
 SOLACE_URL="${SOLACE_URL:-}"
@@ -118,6 +118,43 @@ warn()  { echo -e "  ${Y}⚠️${N}  $1"; }
 err()   { echo -e "  ${R}❌${N} $1"; }
 dim()   { echo -e "  ${D}$1${N}"; }
 spinner() { local p=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏'); printf "${C}%s${N} %s\r" "${p[$((RANDOM%10))]}" "$1"; }
+
+
+# ─── Owner Access Control ─────────────────────────────────────────────────────
+OWNER_EMAIL="${OWNER_EMAIL:-}"
+OWNER_GITHUB="${OWNER_GITHUB:-ivansslo}"
+
+check_owner_access() {
+  # Check if running as owner
+  if [ -n "$OWNER_EMAIL" ]; then
+    # Verify email matches owner
+    local current_user=$(git config user.email 2>/dev/null || echo "")
+    if [ "$current_user" != "$OWNER_EMAIL" ]; then
+      err "Access denied: This CLI is restricted to owner only"
+      err "Owner: $OWNER_EMAIL"
+      err "Current: $current_user"
+      return 1
+    fi
+  fi
+  
+  # Check GitHub username
+  if [ -n "$GITHUB_PAT" ]; then
+    local github_user=$(curl -s -H "Authorization: token $GITHUB_PAT"       "https://api.github.com/user" 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('login',''))" 2>/dev/null)
+    if [ "$github_user" != "$OWNER_GITHUB" ]; then
+      err "Access denied: GitHub user mismatch"
+      err "Expected: $OWNER_GITHUB"
+      err "Current: $github_user"
+      return 1
+    fi
+  fi
+  
+  return 0
+}
+
+# Run owner check on startup (unless disabled)
+if [ "${DISABLE_OWNER_CHECK:-}" != "true" ]; then
+  check_owner_access || exit 1
+fi
 
 # ─── API Call Helper ─────────────────────────────────────────────────────────
 api_call() {
