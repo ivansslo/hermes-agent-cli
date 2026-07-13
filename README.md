@@ -1,4 +1,4 @@
-# ⚡ Hermes Agent CLI v5.6.0 "Omni"
+# ⚡ Hermes Agent CLI v5.6.1 "Omni"
 
 **Full AI Agent CLI for Termux** — integrates 100 repositories into one unified command-line tool.
 
@@ -131,4 +131,4 @@ hermes status
 
 ---
 
-by Ivan Ssl (ivansslo) — v5.6.0 "Omni"
+by Ivan Ssl (ivansslo) — v5.6.1 "Omni"

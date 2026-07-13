@@ -2,7 +2,7 @@
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║                                                                           ║
 # ║   ⚡ HERMES — Ultimate AI Agent CLI for Termux                           ║
-# ║   v5.6.0 "Omni" — Plugins + code suggestions runtime                ║
+# ║   v5.6.1 "Omni" — Self-healing update runtime                ║
 # ║                                                                           ║
 # ║   by Ivan Ssl (ivansslo)                                                  ║
 # ║   Projects: Solace Hermes, RoadFX, AI-Vitality, Codex, CrewAI, ...       ║
@@ -11,7 +11,7 @@
 
 set -uo pipefail
 
-VERSION="5.6.0"
+VERSION="5.6.1"
 CODENAME="Omni"
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
@@ -1816,49 +1816,153 @@ cmd_links() {
 cmd_update() {
   header
   echo -e "${BOLD}🔄 Update Hermes CLI${N}\n"
-  info "Fetching latest from GitHub..."
 
-  local url="https://raw.githubusercontent.com/$GH_USER/hermes-agent-cli/main/hermes"
-  local tmp="/tmp/hermes_new_$$"
+  local branch="${HERMES_UPDATE_BRANCH:-main}"
+  local url="https://raw.githubusercontent.com/$GH_USER/hermes-agent-cli/$branch/hermes"
+  local api_url="https://api.github.com/repos/$GH_USER/hermes-agent-cli/contents/hermes?ref=$branch"
+  local tmp_dir="$HERMES_DIR/tmp"
+  local tmp="$tmp_dir/hermes_new_$$"
+  mkdir -p "$tmp_dir" "$HERMES_DIR" "$HERMES_PLUGIN_DIR" 2>/dev/null || true
 
-  # Try curl with -L (follow redirects) and timeout
-  curl -sL --max-time 30 -o "$tmp" "$url" 2>/dev/null
+  info "Fetching latest from GitHub ($branch)..."
 
-  # Fallback: try wget if curl failed
-  if [ ! -s "$tmp" ]; then
-    wget -q --timeout=30 -O "$tmp" "$url" 2>/dev/null
+  curl -fsSL --max-time 30 -o "$tmp" "$url" 2>/dev/null || true
+
+  if [ ! -s "$tmp" ] && command -v wget >/dev/null 2>&1; then
+    wget -q --timeout=30 -O "$tmp" "$url" 2>/dev/null || true
   fi
 
-  # Fallback 2: try GitHub API
   if [ ! -s "$tmp" ]; then
-    curl -sL --max-time 30 \
+    curl -fsSL --max-time 30 \
       -H "Accept: application/vnd.github.v3.raw" \
-      "https://api.github.com/repos/$GH_USER/hermes-agent-cli/contents/hermes" \
-      -o "$tmp" 2>/dev/null
+      "$api_url" \
+      -o "$tmp" 2>/dev/null || true
   fi
 
-  if [ -s "$tmp" ]; then
-    local new_ver=$(grep '^VERSION=' "$tmp" | head -1 | cut -d'"' -f2)
-    info "Current: v$VERSION → Remote: v${new_ver:-unknown}"
+  if [ ! -s "$tmp" ]; then
+    err "Could not fetch update from GitHub"
+    rm -f "$tmp"
+    return 1
+  fi
 
-    if [ "$new_ver" != "$VERSION" ]; then
-      local target="$(which hermes 2>/dev/null || echo "$PREFIX/bin/hermes")"
-      cp "$tmp" "$target" 2>/dev/null && chmod +x "$target" && ok "Updated to v$new_ver" || {
-        # Fallback: save to HERMES_DIR
-        cp "$tmp" "$HERMES_DIR/hermes" && chmod +x "$HERMES_DIR/hermes"
-        ok "Saved to $HERMES_DIR/hermes"
-        warn "Add to PATH: export PATH=\"$HERMES_DIR:\$PATH\""
-      }
+  local new_ver
+  new_ver=$(grep '^VERSION=' "$tmp" | head -1 | cut -d'"' -f2)
+  if [ -z "$new_ver" ]; then
+    err "Downloaded file is not a valid Hermes script (VERSION missing)"
+    rm -f "$tmp"
+    return 1
+  fi
+
+  if ! bash -n "$tmp" 2>/dev/null; then
+    err "Downloaded Hermes script has syntax errors; update aborted"
+    rm -f "$tmp"
+    return 1
+  fi
+
+  info "Current: v$VERSION → Remote: v$new_ver"
+
+  local current_script="${BASH_SOURCE[0]:-$0}"
+  local target="${HERMES_UPDATE_TARGET:-}"
+
+  if [ -z "$target" ]; then
+    target="$(command -v hermes 2>/dev/null || true)"
+  fi
+  if [ -z "$target" ] && [ -n "${PREFIX:-}" ]; then
+    target="$PREFIX/bin/hermes"
+  fi
+  if [ -z "$target" ] && [ -n "$current_script" ] && [ -e "$current_script" ]; then
+    target="$current_script"
+  fi
+  if [ -z "$target" ]; then
+    target="$HERMES_DIR/hermes"
+  fi
+
+  mkdir -p "$(dirname "$target")" 2>/dev/null || true
+
+  local should_update="0"
+  if [ "${HERMES_FORCE_UPDATE:-}" = "1" ]; then
+    should_update="1"
+  elif [ "$new_ver" != "$VERSION" ]; then
+    # Update only when remote is newer; never downgrade automatically.
+    local newest
+    newest=$(printf '%s
+%s
+' "$VERSION" "$new_ver" | sort -V | tail -1 2>/dev/null || echo "$new_ver")
+    [ "$newest" = "$new_ver" ] && should_update="1" || should_update="0"
+  fi
+
+  if [ "$should_update" = "1" ]; then
+    if [ -f "$target" ]; then
+      cp "$target" "$target.bak" 2>/dev/null || true
+    fi
+    if cp "$tmp" "$target" 2>/dev/null && chmod +x "$target" 2>/dev/null; then
+      ok "Updated Hermes at $target → v$new_ver"
+      [ -f "$target.bak" ] && dim "Backup: $target.bak"
     else
-      info "Already up to date (v$VERSION)"
+      local fallback="$HERMES_DIR/hermes"
+      cp "$tmp" "$fallback" && chmod +x "$fallback" || { err "Update failed: cannot write target or fallback"; rm -f "$tmp"; return 1; }
+      ok "Saved updated Hermes to $fallback"
+      warn "Target was not writable. Add to PATH if needed: export PATH=\"$HERMES_DIR:\$PATH\""
     fi
   else
-    warn "Could not fetch update"
-    echo ""
-    echo -e "  ${Y}Manual update:${N}"
-    echo -e "    ${C}curl -sL $url -o \$PREFIX/bin/hermes && chmod +x \$PREFIX/bin/hermes${N}"
+    if [ "$new_ver" = "$VERSION" ]; then
+      ok "Already up to date (v$VERSION)"
+    else
+      ok "Local version v$VERSION is newer than remote v$new_ver; no downgrade"
+    fi
   fi
+
   rm -f "$tmp"
+
+  # Self-heal runtime after update: no manual steps required.
+  info "Checking runtime folders and suggestion plugins..."
+  mkdir -p "$HERMES_DIR/workspace" "$HERMES_PLUGIN_DIR" 2>/dev/null || true
+  if ! ls "$HERMES_PLUGIN_DIR"/*.commands >/dev/null 2>&1; then
+    cat > "$HERMES_PLUGIN_DIR/multi-agent.commands" <<'EOF'
+/agents
+/agent
+/crew
+/research
+/plan
+/reviewer
+/coder
+/tester
+#multi-agent
+#researcher
+#planner
+#coder
+#reviewer
+#tester
+EOF
+    ok "Installed default suggestion plugin"
+  else
+    ok "Suggestion plugins OK"
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    if [ ! -x "$HERMES_VENV/bin/python" ]; then
+      info "Creating python3_venv: $HERMES_VENV"
+      python3 -m venv "$HERMES_VENV" 2>/dev/null || warn "Could not create python3_venv (install python3-venv if needed)"
+    fi
+    if [ -x "$HERMES_VENV/bin/python" ]; then
+      local missing=""
+      for mod in rich pygments prompt_toolkit requests; do
+        "$HERMES_VENV/bin/python" -c "import $mod" >/dev/null 2>&1 || missing="$missing $mod"
+      done
+      if [ -n "$missing" ]; then
+        info "Installing missing venv packages:$missing"
+        "$HERMES_VENV/bin/python" -m pip install -U pip setuptools wheel rich pygments prompt_toolkit requests >/dev/null 2>&1 \
+          && ok "python3_venv packages OK" \
+          || warn "Could not install all python3_venv packages"
+      else
+        ok "python3_venv packages OK"
+      fi
+    fi
+  else
+    warn "python3 not found; skipping python3_venv check"
+  fi
+
+  ok "Update check complete"
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
