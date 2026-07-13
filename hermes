@@ -1964,7 +1964,7 @@ cmd_clone() {
       "roadfx-full-stack:Full-stack platform + Firebase"
       "roadfx-ai-stack:Backup (newest UI)"
       "ai-vitality:AI Studio app (2 branches)"
-      "hermes-agent-cli:Termux CLI installer"
+      "roc-agentsroute:Termux CLI installer"
       "codex-master-ai-api:15+ models API"
       "solace-crewai-cli:CrewAI CLI"
       "hermes-agent:Python agent framework"
@@ -1988,7 +1988,7 @@ cmd_clone() {
   fi
 
   if [ "$repo" = "all" ]; then
-    local all_repos=("Solace-Hermes-Project" "roadfx-full-stack" "roadfx-ai-stack" "ai-vitality" "hermes-agent-cli" "codex-master-ai-api" "solace-crewai-cli")
+    local all_repos=("Solace-Hermes-Project" "roadfx-full-stack" "roadfx-ai-stack" "ai-vitality" "roc-agentsroute" "codex-master-ai-api" "solace-crewai-cli")
     for r in "${all_repos[@]}"; do
       info "Cloning $r..."
       git clone --depth 1 "https://x-access-token:${GITHUB_PAT}@github.com/${GH_USER}/${r}.git" "$HERMES_WORKSPACE/$r" 2>/dev/null && ok "$r cloned" || warn "$r failed or exists"
@@ -2153,8 +2153,8 @@ cmd_update() {
   echo -e "${BOLD}🔄 Update Hermes CLI${N}\n"
 
   local branch="${HERMES_UPDATE_BRANCH:-main}"
-  local url="https://raw.githubusercontent.com/$GH_USER/hermes-agent-cli/$branch/hermes"
-  local api_url="https://api.github.com/repos/$GH_USER/hermes-agent-cli/contents/hermes?ref=$branch"
+  local url="https://raw.githubusercontent.com/$GH_USER/roc-agentsroute/$branch/hermes"
+  local api_url="https://api.github.com/repos/$GH_USER/roc-agentsroute/contents/hermes?ref=$branch"
   local tmp_dir="$HERMES_DIR/tmp"
   local tmp="$tmp_dir/hermes_new_$$"
   mkdir -p "$tmp_dir" "$HERMES_DIR" "$HERMES_PLUGIN_DIR" 2>/dev/null || true
@@ -2165,7 +2165,7 @@ cmd_update() {
   if [ -n "$GITHUB_PAT" ]; then
     auth_args=(-H "Authorization: Bearer $GITHUB_PAT")
     local repo_meta repo_private
-    repo_meta=$(curl -fsSL --max-time 15 "${auth_args[@]}" "https://api.github.com/repos/$GH_USER/hermes-agent-cli" 2>/dev/null || true)
+    repo_meta=$(curl -fsSL --max-time 15 "${auth_args[@]}" "https://api.github.com/repos/$GH_USER/roc-agentsroute" 2>/dev/null || true)
     repo_private=$(printf "%s" "$repo_meta" | python3 -c "import json,sys;
 try: print('private' if json.load(sys.stdin).get('private') else 'public')
 except Exception: print('unknown')" 2>/dev/null)
