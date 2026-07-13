@@ -1,9 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ═══════════════════════════════════════════════
-#  Hermes v5.7.1 Omni — Installer for Termux
+#  Hermes v5.7.2 Omni — Installer for Termux
 # ═══════════════════════════════════════════════
 
-echo "⚡ Installing Hermes v5.7.1 Omni..."
+echo "⚡ Installing Hermes v5.7.2 Omni..."
 
 # Dependencies
 pkg update -y 2>/dev/null

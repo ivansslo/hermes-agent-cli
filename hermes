@@ -2,7 +2,7 @@
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║                                                                           ║
 # ║   ⚡ HERMES — Ultimate AI Agent CLI for Termux                           ║
-# ║   v5.7.1 "Omni" — Private repo update + best AI keys                ║
+# ║   v5.7.2 "Omni" — Termux prompt fix + public repo update                ║
 # ║                                                                           ║
 # ║   by Ivan Ssl (ivansslo)                                                  ║
 # ║   Projects: Solace Hermes, RoadFX, AI-Vitality, Codex, CrewAI, ...       ║
@@ -11,7 +11,7 @@
 
 set -uo pipefail
 
-VERSION="5.7.1"
+VERSION="5.7.2"
 CODENAME="Omni"
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
@@ -1104,18 +1104,26 @@ EOF
 
 hermes_read_input() {
   local __var="$1" prompt_text="$2" mode="${3:-chat}"
-  local __line=""
+  local __line="" prompt_rendered=""
 
-  if [ -t 0 ]; then
-    mkdir -p "$HERMES_DIR/tmp" "$HERMES_PLUGIN_DIR" 2>/dev/null || true
-    local py tmp rc
+  # Convert Hermes color variables (literal \033) into real ANSI before sending
+  # to prompt_toolkit. Without this, Termux can display "\033[0;32mYou>".
+  printf -v prompt_rendered "%b" "$prompt_text"
+
+  mkdir -p "$HERMES_DIR/tmp" "$HERMES_PLUGIN_DIR" 2>/dev/null || true
+
+  # Only use prompt_toolkit when we have a real terminal. The old here-doc
+  # implementation fed the Python program through stdin, so prompt_toolkit saw
+  # fd=0 as non-terminal and printed: "Warning: Input is not a terminal (fd=0)".
+  # We now write a temporary Python file and run it with /dev/tty attached.
+  if [ "${HERMES_NO_PROMPT_TOOLKIT:-}" != "1" ] && [ -t 0 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    local py tmp script rc
     py="$(_hermes_python)"
     tmp="$HERMES_DIR/tmp/input_$$.txt"
+    script="$HERMES_DIR/tmp/input_$$.py"
+
     if "$py" -c "import prompt_toolkit" >/dev/null 2>&1; then
-      HERMES_INPUT_OUT="$tmp" \
-      HERMES_PLUGIN_DIR="$HERMES_PLUGIN_DIR" \
-      HERMES_BUILTIN_SUGGESTIONS="$(_hermes_builtin_suggestions)" \
-      "$py" - "$prompt_text" "$mode" <<'PYINPUT'
+      cat > "$script" <<'PYINPUT'
 import os, re, sys
 from pathlib import Path
 from prompt_toolkit import prompt
@@ -1144,7 +1152,6 @@ if plugin_dir.exists():
         except Exception:
             pass
 
-# Mode-aware priority: keep all words, but place relevant commands first.
 priority = []
 if mode in ("coding", "code"):
     priority = ["/agent","/file","/preview","/run","/sh","/fix","/debug","/refactor","/test","/apply","/venv","/lang"]
@@ -1155,7 +1162,8 @@ seen = set()
 ordered = []
 for w in priority + words:
     if w not in seen:
-        ordered.append(w); seen.add(w)
+        ordered.append(w)
+        seen.add(w)
 
 class HermesCompleter(Completer):
     def get_completions(self, document, complete_event):
@@ -1174,6 +1182,7 @@ style = Style.from_dict({
     "completion-menu.completion.current": "bg:#005f87 #ffffff bold",
     "completion-menu.meta.completion": "bg:#1e1e1e #87d7ff",
 })
+
 try:
     text = prompt(
         ANSI(prompt_text),
@@ -1184,24 +1193,39 @@ try:
     )
 except (EOFError, KeyboardInterrupt):
     text = "/exit"
+
 if out:
     Path(out).write_text(text)
 else:
     print(text)
 PYINPUT
+
+      HERMES_INPUT_OUT="$tmp" \
+      HERMES_PLUGIN_DIR="$HERMES_PLUGIN_DIR" \
+      HERMES_BUILTIN_SUGGESTIONS="$(_hermes_builtin_suggestions)" \
+      "$py" "$script" "$prompt_rendered" "$mode" </dev/tty >/dev/tty 2>/dev/tty
       rc=$?
+      rm -f "$script"
       if [ "$rc" -eq 0 ] && [ -f "$tmp" ]; then
         __line="$(cat "$tmp")"
         rm -f "$tmp"
         printf -v "$__var" '%s' "$__line"
         return 0
       fi
+      rm -f "$tmp"
     fi
   fi
 
+  # Plain fallback for pipes, scripts, unsupported terminals, or missing venv.
   printf "%b" "$prompt_text"
-  IFS= read -r __line
-  printf -v "$__var" '%s' "$__line"
+  if IFS= read -r __line; then
+    printf -v "$__var" '%s' "$__line"
+    return 0
+  fi
+
+  # EOF: tell callers to exit instead of looping forever.
+  printf -v "$__var" '%s' "/exit"
+  return 1
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
