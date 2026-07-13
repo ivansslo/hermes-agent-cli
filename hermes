@@ -2,7 +2,7 @@
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║                                                                           ║
 # ║   ⚡ HERMES — Ultimate AI Agent CLI for Termux                           ║
-# ║   v5.7.2 "Omni" — Termux prompt fix + public repo update                ║
+# ║   v5.7.3 "Omni" — Termux chat TTY + model error parse fix               ║
 # ║                                                                           ║
 # ║   by Ivan Ssl (ivansslo)                                                  ║
 # ║   Projects: Solace Hermes, RoadFX, AI-Vitality, Codex, CrewAI, ...       ║
@@ -11,7 +11,7 @@
 
 set -uo pipefail
 
-VERSION="5.7.2"
+VERSION="5.7.3"
 CODENAME="Omni"
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
@@ -84,7 +84,8 @@ PROVIDER="${PROVIDER:-best}"
 _default_model_for() {
   case "$1" in
     openrouter|or) echo "anthropic/claude-sonnet-4-5" ;;
-    gemini)       echo "gemini-2.5-pro" ;;
+    # Prefer Flash as default: free-tier keys often have higher quota than Pro.
+    gemini)       echo "gemini-2.5-flash" ;;
     groq)         echo "llama-3.3-70b-versatile" ;;
     gateway)      echo "llama-3.3-70b-versatile" ;;
     cloudrun)     echo "llama-3.3-70b-versatile" ;;
@@ -178,9 +179,12 @@ cmd_ai_best_status() {
 json_escape() { python3 -c "import json,sys; print(json.dumps(sys.stdin.read().strip()))" <<< "$1"; }
 
 # ─── Colors ──────────────────────────────────────────────────────────────────
-R='\033[0;31m'; G='\033[0;32m'; Y='\033[1;33m'; B='\033[0;34m'
-P='\033[0;35m'; C='\033[0;36m'; W='\033[1;37m'; D='\033[0;90m'; N='\033[0m'
-BOLD='\033[1m'; DIM='\033[2m'
+# Use ANSI-C quoting ($'...') so sequences are real ESC bytes. Literal
+# '\033[...]' strings often print as "\033[0;32mYou>" on Termux when a
+# code path forgets printf %b / echo -e.
+R=$'\033[0;31m'; G=$'\033[0;32m'; Y=$'\033[1;33m'; B=$'\033[0;34m'
+P=$'\033[0;35m'; C=$'\033[0;36m'; W=$'\033[1;37m'; D=$'\033[0;90m'; N=$'\033[0m'
+BOLD=$'\033[1m'; DIM=$'\033[2m'
 
 # ─── UI Helpers ──────────────────────────────────────────────────────────────
 header() {
@@ -476,22 +480,43 @@ print(json.dumps(body))
           "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$GEMINI_KEY" \
           "$gemini_msgs" "")
         local content
-        content=$(echo "$response" | python3 -c "
+        content=$(printf '%s' "$response" | python3 -c "
 import json,sys
+raw = sys.stdin.read()
+if not raw or not raw.strip():
+    print('Error: empty response from Gemini API (check GEMINI_KEY / model name)')
+    raise SystemExit(0)
 try:
-    d=json.load(sys.stdin)
+    d = json.loads(raw)
+except Exception as e:
+    print('Error: invalid JSON from Gemini: ' + str(e))
+    print(raw[:400])
+    raise SystemExit(0)
+if isinstance(d, dict) and d.get('error'):
+    err = d['error']
+    if isinstance(err, dict):
+        msg = err.get('message') or err.get('status') or str(err)
+    else:
+        msg = str(err)
+    print('Error: ' + msg)
+    raise SystemExit(0)
+try:
     print(d['candidates'][0]['content']['parts'][0]['text'])
 except Exception as e:
-    print('Error: ' + str(e))
+    print('Error: unexpected Gemini response: ' + str(e))
+    print(raw[:400])
 " 2>/dev/null)
         echo "$content"
+        echo ""
+        case "$content" in
+          Error:*) continue ;;
+        esac
         messages=$(python3 -c "
 import json,sys
 msgs = json.loads(sys.argv[1])
 msgs.append({'role':'assistant','content':sys.argv[2]})
 print(json.dumps(msgs))
 " "$messages" "$content" 2>/dev/null || echo "$messages")
-        echo ""
         continue
         ;;
       gateway)
@@ -516,18 +541,47 @@ print(json.dumps(msgs))
     esac
 
     local content
-    content=$(echo "$response" | python3 -c "
+    content=$(printf '%s' "$response" | python3 -c "
 import json,sys
+raw = sys.stdin.read()
+if not raw or not raw.strip():
+    print('Error: empty response from model API (check network / API key / model name)')
+    raise SystemExit(0)
 try:
-    d=json.load(sys.stdin)
-    print(d['choices'][0]['message']['content'])
+    d = json.loads(raw)
 except Exception as e:
-    raw=sys.stdin.read()
-    print('Error: ' + str(e) + (' | ' + raw[:300] if raw else ''))
-" 2>/dev/null || echo "$response" | head -c 500)
+    print('Error: invalid JSON from model API: ' + str(e))
+    print(raw[:400])
+    raise SystemExit(0)
+# Surface provider errors clearly (wrong model name, bad key, rate limit, etc.)
+if isinstance(d, dict) and d.get('error'):
+    err = d['error']
+    if isinstance(err, dict):
+        msg = err.get('message') or err.get('code') or str(err)
+    else:
+        msg = str(err)
+    print('Error: ' + msg)
+    raise SystemExit(0)
+try:
+    print(d['choices'][0]['message']['content'])
+except Exception:
+    # Some gateways return {content: ...} or Gemini-style payloads
+    try:
+        print(d['candidates'][0]['content']['parts'][0]['text'])
+    except Exception:
+        print('Error: unexpected model response shape')
+        print(raw[:400])
+" 2>/dev/null || printf '%s' "$response" | head -c 500)
 
     echo "$content"
     echo ""
+
+    # Do not pollute conversation history with API error strings.
+    case "$content" in
+      Error:*)
+        continue
+        ;;
+    esac
 
     messages=$(python3 -c "
 import json,sys
@@ -1104,29 +1158,42 @@ EOF
 
 hermes_read_input() {
   local __var="$1" prompt_text="$2" mode="${3:-chat}"
-  local __line="" prompt_rendered=""
+  local __line="" prompt_rendered="" have_tty=0 stdin_tty=0
 
-  # Convert Hermes color variables (literal \033) into real ANSI before sending
-  # to prompt_toolkit. Without this, Termux can display "\033[0;32mYou>".
+  # Normalize any residual literal \033 / \e sequences into real ESC bytes.
+  # Colors are already real ANSI ($'...') but keep this for callers that pass
+  # quoted escape strings.
   printf -v prompt_rendered "%b" "$prompt_text"
 
   mkdir -p "$HERMES_DIR/tmp" "$HERMES_PLUGIN_DIR" 2>/dev/null || true
 
-  # Only use prompt_toolkit when we have a real terminal. The old here-doc
+  # Probe the real console. Do not trust -r/-w alone: some environments expose
+  # /dev/tty as a path that still fails to open (Errno 6 / ENXIO).
+  if { : </dev/tty; } 2>/dev/null && { : >/dev/tty; } 2>/dev/null; then
+    have_tty=1
+  fi
+  [ -t 0 ] && stdin_tty=1
+
+  # Only use prompt_toolkit when a real console exists. The old here-doc
   # implementation fed the Python program through stdin, so prompt_toolkit saw
   # fd=0 as non-terminal and printed: "Warning: Input is not a terminal (fd=0)".
-  # We now write a temporary Python file and run it with /dev/tty attached.
-  if [ "${HERMES_NO_PROMPT_TOOLKIT:-}" != "1" ] && [ -t 0 ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
-    local py tmp script rc
+  # We force create_input/create_output against /dev/tty and silence the warning.
+  if [ "${HERMES_NO_PROMPT_TOOLKIT:-}" != "1" ] && { [ "$stdin_tty" -eq 1 ] || [ "$have_tty" -eq 1 ]; }; then
+    local py tmp script rc errf
     py="$(_hermes_python)"
     tmp="$HERMES_DIR/tmp/input_$$.txt"
     script="$HERMES_DIR/tmp/input_$$.py"
+    errf="$HERMES_DIR/tmp/input_$$.err"
 
     if "$py" -c "import prompt_toolkit" >/dev/null 2>&1; then
       cat > "$script" <<'PYINPUT'
-import os, re, sys
+import os, re, sys, warnings
 from pathlib import Path
-from prompt_toolkit import prompt
+
+# Termux / non-TTY hosts: suppress prompt_toolkit's noisy console warning.
+warnings.filterwarnings("ignore", message=r".*not a terminal.*")
+
+from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.formatted_text import ANSI
 from prompt_toolkit.styles import Style
@@ -1183,8 +1250,41 @@ style = Style.from_dict({
     "completion-menu.meta.completion": "bg:#1e1e1e #87d7ff",
 })
 
+def _open_tty_io():
+    """Bind prompt_toolkit to the real console, not a redirected stdin pipe.
+
+    prompt_toolkit 3.x accepts always_prefer_tty=True which reopens /dev/tty
+    when stdin/stdout are pipes — this is exactly the Termux failure mode that
+    produced: Warning: Input is not a terminal (fd=0).
+    """
+    try:
+        from prompt_toolkit.input import create_input
+        from prompt_toolkit.output import create_output
+        # Prefer the library's own tty re-open first.
+        try:
+            return (
+                create_input(always_prefer_tty=True),
+                create_output(always_prefer_tty=True),
+            )
+        except Exception:
+            pass
+        # Explicit /dev/tty fallback for older hosts.
+        if os.path.exists("/dev/tty"):
+            tty_in = open("/dev/tty", "rb", buffering=0)
+            tty_out = open("/dev/tty", "w", encoding="utf-8", errors="replace")
+            return create_input(stdin=tty_in), create_output(stdout=tty_out)
+    except Exception:
+        pass
+    return None, None
+
+text = "/exit"
 try:
-    text = prompt(
+    inp, outp = _open_tty_io()
+    if inp is not None and outp is not None:
+        session = PromptSession(input=inp, output=outp)
+    else:
+        session = PromptSession()
+    text = session.prompt(
         ANSI(prompt_text),
         completer=HermesCompleter(),
         complete_while_typing=True,
@@ -1193,19 +1293,39 @@ try:
     )
 except (EOFError, KeyboardInterrupt):
     text = "/exit"
+except Exception:
+    # Any prompt_toolkit failure → let bash fallback handle input.
+    sys.exit(2)
 
 if out:
-    Path(out).write_text(text)
+    Path(out).write_text(text, encoding="utf-8", errors="replace")
 else:
+    # Avoid printing prompt echo when output is redirected; bash reads HERMES_INPUT_OUT.
     print(text)
 PYINPUT
 
-      HERMES_INPUT_OUT="$tmp" \
-      HERMES_PLUGIN_DIR="$HERMES_PLUGIN_DIR" \
-      HERMES_BUILTIN_SUGGESTIONS="$(_hermes_builtin_suggestions)" \
-      "$py" "$script" "$prompt_rendered" "$mode" </dev/tty >/dev/tty 2>/dev/tty
-      rc=$?
+      # Attach all three std streams to /dev/tty when possible so Termux never
+      # reports "Input is not a terminal (fd=0)". Capture python stderr separately
+      # so the warning cannot leak into the chat transcript if it still fires.
+      if [ "$have_tty" -eq 1 ]; then
+        HERMES_INPUT_OUT="$tmp" \
+        HERMES_PLUGIN_DIR="$HERMES_PLUGIN_DIR" \
+        HERMES_BUILTIN_SUGGESTIONS="$(_hermes_builtin_suggestions)" \
+          "$py" "$script" "$prompt_rendered" "$mode" </dev/tty >/dev/tty 2>"$errf"
+        rc=$?
+      else
+        HERMES_INPUT_OUT="$tmp" \
+        HERMES_PLUGIN_DIR="$HERMES_PLUGIN_DIR" \
+        HERMES_BUILTIN_SUGGESTIONS="$(_hermes_builtin_suggestions)" \
+          "$py" "$script" "$prompt_rendered" "$mode" 2>"$errf"
+        rc=$?
+      fi
       rm -f "$script"
+      # Drop the known non-fatal warning if it still appears on stderr.
+      if [ -f "$errf" ]; then
+        grep -v -E 'Input is not a terminal|Output is not a terminal' "$errf" >&2 2>/dev/null || true
+        rm -f "$errf"
+      fi
       if [ "$rc" -eq 0 ] && [ -f "$tmp" ]; then
         __line="$(cat "$tmp")"
         rm -f "$tmp"
@@ -1217,10 +1337,19 @@ PYINPUT
   fi
 
   # Plain fallback for pipes, scripts, unsupported terminals, or missing venv.
-  printf "%b" "$prompt_text"
-  if IFS= read -r __line; then
-    printf -v "$__var" '%s' "$__line"
-    return 0
+  # Always expand ANSI so Termux never shows "\033[0;32mYou>".
+  if [ "$have_tty" -eq 1 ]; then
+    printf "%b" "$prompt_rendered" >/dev/tty 2>/dev/null || printf "%b" "$prompt_rendered"
+    if IFS= read -r __line </dev/tty; then
+      printf -v "$__var" '%s' "$__line"
+      return 0
+    fi
+  else
+    printf "%b" "$prompt_rendered"
+    if IFS= read -r __line; then
+      printf -v "$__var" '%s' "$__line"
+      return 0
+    fi
   fi
 
   # EOF: tell callers to exit instead of looping forever.
@@ -2527,7 +2656,7 @@ cmd_studio() {
       echo -e "${BOLD}🎨 AI Studio Chat${N} — Gemini"
       echo -e "  ${D}Type 'exit' to quit, '/model <name>' to switch${N}\n"
 
-      local model="gemini-2.0-flash-exp"
+      local model="gemini-2.5-flash"
       local messages="[]"
 
       while true; do
@@ -2633,7 +2762,7 @@ print(json.dumps(msgs))
             local question="${input#/ask }"
             if [ -n "$question" ]; then
               echo ""
-              PROVIDER=gemini MODEL=gemini-2.0-flash-exp cmd_ask "$question"
+              PROVIDER=gemini MODEL=gemini-2.5-flash cmd_ask "$question"
               echo ""
             else
               warn "Usage: /ask <question>"
@@ -2672,7 +2801,7 @@ print(json.dumps(msgs))
           *)
             # Treat as a question to AI
             echo ""
-            PROVIDER=gemini MODEL=gemini-2.0-flash-exp cmd_ask "$input"
+            PROVIDER=gemini MODEL=gemini-2.5-flash cmd_ask "$input"
             echo ""
             ;;
         esac

@@ -1,9 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ═══════════════════════════════════════════════
-#  Hermes v5.7.2 Omni — Installer for Termux
+#  Hermes v5.7.3 Omni — Installer for Termux
 # ═══════════════════════════════════════════════
 
-echo "⚡ Installing Hermes v5.7.2 Omni..."
+echo "⚡ Installing Hermes v5.7.3 Omni..."
 
 # Dependencies
 pkg update -y 2>/dev/null
@@ -21,9 +21,12 @@ if command -v python3 >/dev/null 2>&1; then
 fi
 
 # Download CLI
-curl -s -o "$PREFIX/bin/hermes" \
+# Prefer PREFIX (Termux); fall back to ~/.local/bin on other Linux hosts.
+BIN_DIR="${PREFIX:-$HOME/.local}/bin"
+mkdir -p "$BIN_DIR"
+curl -s -o "$BIN_DIR/hermes" \
   "https://raw.githubusercontent.com/ivansslo/hermes-agent-cli/main/hermes"
-chmod +x "$PREFIX/bin/hermes"
+chmod +x "$BIN_DIR/hermes"
 
 # Setup dirs
 mkdir -p "$HOME/.hermes/workspace" "$HOME/.hermes/plugins"
@@ -48,21 +51,6 @@ cat > "$HOME/.hermes/plugins/multi-agent.commands" <<'EOF'
 #coder
 #reviewer
 #tester
-EOF'
-/agents
-/agent
-/crew
-/research
-/plan
-/reviewer
-/coder
-/tester
-#multi-agent
-#researcher
-#planner
-#coder
-#reviewer
-#tester
 EOF
 
 echo ""
@@ -71,3 +59,4 @@ echo ""
 echo "  Run: hermes setup   (configure API keys)"
 echo "  Run: hermes help    (see all commands)"
 echo "  Run: hermes status  (check connections)"
+echo "  Run: hermes chat    (interactive chat — Termux TTY fixed in v5.7.3)"

@@ -72,7 +72,7 @@ export HERMES_RUN_TIMEOUT=120
 Hermes Chat now defaults to `PROVIDER=best`, which selects the strongest available runtime from all configured keys:
 
 1. OpenRouter (`OR_KEY`) → `anthropic/claude-sonnet-4-5`
-2. Gemini (`GEMINI_KEY`) → `gemini-2.5-pro`
+2. Gemini (`GEMINI_KEY`) → `gemini-2.5-flash`
 3. Groq (`GROQ_KEY`) → `llama-3.3-70b-versatile`
 4. Hermes Gateway / Cloud Run / CF AI fallback
 
@@ -155,4 +155,13 @@ hermes status
 
 ---
 
-by Ivan Ssl (ivansslo) — v5.7.2 "Omni"
+by Ivan Ssl (ivansslo) — v5.7.3 "Omni"
+
+## 🐛 Termux Chat Fix (v5.7.3)
+
+Fixed interactive chat on Termux:
+
+- `Warning: Input is not a terminal (fd=0)` — prompt_toolkit now binds to `/dev/tty` via `always_prefer_tty` and bash redirects stdin/stdout/stderr to the console.
+- Literal prompt `\033[0;32mYou>` — color variables use real ANSI (`$'...'`) so the prompt always renders as green `You>`.
+- Model API errors (bad model name / key / empty body) are printed clearly and no longer pollute chat history.
+- Broken `install.sh` heredoc for default plugins is fixed.
