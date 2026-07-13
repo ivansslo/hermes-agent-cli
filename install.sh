@@ -25,7 +25,7 @@ fi
 BIN_DIR="${PREFIX:-$HOME/.local}/bin"
 mkdir -p "$BIN_DIR"
 curl -s -o "$BIN_DIR/hermes" \
-  "https://raw.githubusercontent.com/ivansslo/hermes-agent-cli/main/hermes"
+  "https://raw.githubusercontent.com/ivansslo/roc-agentsroute/main/hermes"
 chmod +x "$BIN_DIR/hermes"
 
 # Setup dirs
