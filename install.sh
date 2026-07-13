@@ -1,9 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ═══════════════════════════════════════════════
-#  Hermes v5.6.2 Omni — Installer for Termux
+#  Hermes v5.7.1 Omni — Installer for Termux
 # ═══════════════════════════════════════════════
 
-echo "⚡ Installing Hermes v5.6.2 Omni..."
+echo "⚡ Installing Hermes v5.7.1 Omni..."
 
 # Dependencies
 pkg update -y 2>/dev/null
@@ -28,6 +28,27 @@ chmod +x "$PREFIX/bin/hermes"
 # Setup dirs
 mkdir -p "$HOME/.hermes/workspace" "$HOME/.hermes/plugins"
 cat > "$HOME/.hermes/plugins/multi-agent.commands" <<'EOF'
+/agents
+/agent
+/crew
+/research
+/plan
+/best
+/ai
+/plugins
+/reviewer
+/coder
+/tester
+#agent-mode
+#autonomous-agent
+#best-ai
+#multi-agent
+#researcher
+#planner
+#coder
+#reviewer
+#tester
+EOF'
 /agents
 /agent
 /crew

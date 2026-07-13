@@ -1,4 +1,4 @@
-# ⚡ Hermes Agent CLI v5.6.2 "Omni"
+# ⚡ Hermes Agent CLI v5.7.1 "Omni"
 
 **Full AI Agent CLI for Termux** — integrates 100 repositories into one unified command-line tool.
 
@@ -12,13 +12,14 @@ curl -s https://raw.githubusercontent.com/ivansslo/hermes-agent-cli/main/install
 
 ```
 hermes setup              # Interactive API key setup
-hermes chat [model]       # Interactive AI chat (Groq/OpenRouter/Gemini/CF AI)
+hermes chat [model]       # Best-AI interactive chat (auto from all active keys)
 hermes ask <question>     # Quick question (non-interactive)
 hermes code <desc>        # Generate code from description
 hermes coding             # Interactive code commands (/run /agent /venv /sh)
 hermes agent <task>       # Active multi-step coding agent (read/write/run)
 hermes venv init          # Create ~/.hermes/python3_venv + rich/pygments
 hermes plugins init       # Enable / and # suggestions in interactive chat
+hermes ai-best            # Show strongest active AI selected from all keys
 hermes crew [topic]       # CrewAI multi-agent research
 hermes embed <text>       # Voyage AI embedding
 hermes crawl <url>        # Crawl URL to markdown
@@ -64,6 +65,29 @@ export HERMES_AGENT_STEPS=10
 export HERMES_RUN_TIMEOUT=120
 ```
 
+
+
+## 🧠 Best AI Chat + Agent Mode
+
+Hermes Chat now defaults to `PROVIDER=best`, which selects the strongest available runtime from all configured keys:
+
+1. OpenRouter (`OR_KEY`) → `anthropic/claude-sonnet-4-5`
+2. Gemini (`GEMINI_KEY`) → `gemini-2.5-pro`
+3. Groq (`GROQ_KEY`) → `llama-3.3-70b-versatile`
+4. Hermes Gateway / Cloud Run / CF AI fallback
+
+```bash
+hermes ai-best
+hermes chat
+```
+
+Chat branding/system prompt includes:
+
+```text
+Agent Mode | Agen AI Otonom untuk Tugas Dunia Nyata
+Jalankan agen AI otonom yang menjelajahi, meneliti, membuat kode,
+dan menyelesaikan tugas dunia nyata. Bandingkan alur kerja agen dan model terdepan.
+```
 
 ## 🔌 Plugin Suggestions for `/` and `#`
 
@@ -131,4 +155,4 @@ hermes status
 
 ---
 
-by Ivan Ssl (ivansslo) — v5.6.2 "Omni"
+by Ivan Ssl (ivansslo) — v5.7.1 "Omni"

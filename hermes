@@ -2,7 +2,7 @@
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║                                                                           ║
 # ║   ⚡ HERMES — Ultimate AI Agent CLI for Termux                           ║
-# ║   v5.6.2 "Omni" — API-first self-update runtime                ║
+# ║   v5.7.1 "Omni" — Private repo update + best AI keys                ║
 # ║                                                                           ║
 # ║   by Ivan Ssl (ivansslo)                                                  ║
 # ║   Projects: Solace Hermes, RoadFX, AI-Vitality, Codex, CrewAI, ...       ║
@@ -11,7 +11,7 @@
 
 set -uo pipefail
 
-VERSION="5.6.2"
+VERSION="5.7.1"
 CODENAME="Omni"
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
@@ -66,31 +66,111 @@ fi
 
 # Defaults (only set if still empty — preserves exported env vars)
 TOKEN="${TOKEN:-}"
-GROQ_KEY="${GROQ_KEY:-}"
-OR_KEY="${OR_KEY:-}"
-GEMINI_KEY="${GEMINI_KEY:-}"
-CF_TOKEN="${CF_TOKEN:-}"
-CF_AI_TOKEN="${CF_AI_TOKEN:-}"
-CF_ACCOUNT="${CF_ACCOUNT:-}"
-GITHUB_PAT="${GITHUB_PAT:-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}"
+GROQ_KEY="${GROQ_KEY:-${GROQ_API_KEY:-}}"
+OR_KEY="${OR_KEY:-${OPENROUTER_API_KEY:-${OPENROUTER_KEY:-}}}"
+GEMINI_KEY="${GEMINI_KEY:-${GEMINI_API_KEY:-${GOOGLE_API_KEY:-}}}"
+CF_TOKEN="${CF_TOKEN:-${CF_API_TOKEN:-${CLOUDFLARE_API_TOKEN:-}}}"
+CF_AI_TOKEN="${CF_AI_TOKEN:-${CLOUDFLARE_AI_TOKEN:-}}"
+CF_ACCOUNT="${CF_ACCOUNT:-${CLOUDFLARE_ACCOUNT_ID:-}}"
+GITHUB_PAT="${GITHUB_PAT:-${GH_TOKEN:-${GITHUB_TOKEN:-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}}}"
 MONGO_URI="${MONGO_URI:-}"
-VOYAGE_KEY="${VOYAGE_KEY:-}"
+VOYAGE_KEY="${VOYAGE_KEY:-${VOYAGE_API_KEY:-}}"
 SOLACE_URL="${SOLACE_URL:-}"
 ISDOCKER_GEMINI_KEY="${ISDOCKER_GEMINI_KEY:-AQ.Ab8RN6K7ZJCEkGVtIVU38jjbopXeJpITy84Vxzup0ZeoTfJIcA}"
-MODEL="${MODEL:-llama-3.3-70b-versatile}"
-PROVIDER="${PROVIDER:-groq}"
+MODEL="${MODEL:-}"
+PROVIDER="${PROVIDER:-best}"
 
 # ─── Auto-select model per provider ──────────────────────────────────────────
 _default_model_for() {
   case "$1" in
+    openrouter|or) echo "anthropic/claude-sonnet-4-5" ;;
+    gemini)       echo "gemini-2.5-pro" ;;
     groq)         echo "llama-3.3-70b-versatile" ;;
-    openrouter|or) echo "google/gemini-2.5-flash" ;;
-    gemini)       echo "gemini-2.5-flash" ;;
     gateway)      echo "llama-3.3-70b-versatile" ;;
     cloudrun)     echo "llama-3.3-70b-versatile" ;;
     cf|cfai)      echo "@cf/meta/llama-3.3-70b-instruct-fp8-fast" ;;
+    best|auto|all) echo "auto" ;;
     *)            echo "llama-3.3-70b-versatile" ;;
   esac
+}
+
+_provider_ready() {
+  case "$1" in
+    openrouter|or) [ -n "$OR_KEY" ] ;;
+    gemini)        [ -n "$GEMINI_KEY" ] ;;
+    groq)          [ -n "$GROQ_KEY" ] ;;
+    gateway)       [ -n "$TOKEN" ] ;;
+    cloudrun)      [ -n "$TOKEN" ] ;;
+    cf|cfai)       [ -n "$TOKEN" ] || [ -n "$CF_AI_TOKEN" ] ;;
+    *)             return 1 ;;
+  esac
+}
+
+_best_ai_runtime() {
+  # Ranking: choose the strongest configured provider/key automatically.
+  # Override with PROVIDER=<name> MODEL=<model> when a specific runtime is desired.
+  if _provider_ready openrouter; then
+    echo "openrouter|$(_default_model_for openrouter)"; return
+  fi
+  if _provider_ready gemini; then
+    echo "gemini|$(_default_model_for gemini)"; return
+  fi
+  if _provider_ready groq; then
+    echo "groq|$(_default_model_for groq)"; return
+  fi
+  if _provider_ready gateway; then
+    echo "gateway|$(_default_model_for gateway)"; return
+  fi
+  if _provider_ready cloudrun; then
+    echo "cloudrun|$(_default_model_for cloudrun)"; return
+  fi
+  if _provider_ready cfai; then
+    echo "cfai|$(_default_model_for cfai)"; return
+  fi
+  echo "groq|$(_default_model_for groq)"
+}
+
+_resolve_ai_runtime() {
+  local provider="${1:-${PROVIDER:-best}}" model="${2:-${MODEL:-}}" sel
+  case "$provider" in
+    best|auto|all|"")
+      sel="$(_best_ai_runtime)"
+      provider="${sel%%|*}"
+      model="${sel#*|}"
+      ;;
+    *)
+      [ -z "$model" ] || [ "$model" = "auto" ] && model="$(_default_model_for "$provider")"
+      ;;
+  esac
+  echo "$provider|$model"
+}
+
+cmd_ai_best_status() {
+  header
+  echo -e "${BOLD}🧠 Best AI Runtime${N}
+"
+  local sel p m
+  sel="$(_best_ai_runtime)"
+  p="${sel%%|*}"
+  m="${sel#*|}"
+  echo -e "  ${W}Selected:${N} ${C}$p${N} / ${C}$m${N}"
+  if ! _provider_ready "$p"; then
+    warn "No AI provider key detected; selection is a fallback. Run hermes setup."
+  fi
+  echo ""
+  echo -e "  ${Y}Available keys:${N}"
+  for item in "openrouter:OR_KEY" "gemini:GEMINI_KEY" "groq:GROQ_KEY" "gateway:TOKEN" "cloudrun:TOKEN" "cfai:CF_AI_TOKEN/TOKEN"; do
+    local name="${item%%:*}" key="${item#*:}"
+    if _provider_ready "$name"; then
+      printf "    ${G}✅${N} %-12s %s
+" "$name" "$(_default_model_for "$name")"
+    else
+      printf "    ${D}○${N}  %-12s %s
+" "$name" "no $key"
+    fi
+  done
+  echo ""
+  echo -e "  ${D}Set PROVIDER=best for automatic selection, or PROVIDER=gemini/openrouter/groq to force.${N}"
 }
 [ -z "$MODEL" ] && MODEL="$(_default_model_for "$PROVIDER")"
 
@@ -237,29 +317,91 @@ cmd_config() {
 #  AI CHAT (Interactive)
 # ═════════════════════════════════════════════════════════════════════════════
 cmd_chat() {
-  local provider="${2:-${PROVIDER:-groq}}"
-  local model="${1:-${MODEL:-$(_default_model_for "$provider")}}"
+  local provider="${2:-${PROVIDER:-best}}"
+  local model="${1:-${MODEL:-}}"
+  local sel
+  sel="$(_resolve_ai_runtime "$provider" "$model")"
+  provider="${sel%%|*}"
+  model="${sel#*|}"
+
   header
-  echo -e "${BOLD}💬 AI Chat${N} — ${C}${model}${N} (${provider})"
-  echo -e "  ${D}Type 'exit' to quit, '/model <name>' to switch, '/save' to save${N}\n"
+  echo -e "${BOLD}💬 Hermes Chat — Best AI${N} — ${C}${model}${N} (${provider})"
+  echo -e "  ${D}Agent Mode | Agen AI Otonom untuk Tugas Dunia Nyata${N}"
+  echo -e "  ${D}Jalankan agen AI otonom yang menjelajahi, meneliti, membuat kode, dan menyelesaikan tugas dunia nyata.${N}"
+  echo -e "  ${D}Ketik / atau # untuk suggestion. /help untuk commands. /best untuk AI terbaik.${N}\n"
+  if ! _provider_ready "$provider"; then
+    warn "No active key detected for provider '$provider'. Run hermes setup or export PROVIDER/GEMINI_KEY/OR_KEY/GROQ_KEY."
+  fi
 
   local messages="[]"
-  local system_prompt="${SYSTEM:-You are Hermes, an advanced AI assistant. Be concise, helpful, and accurate.}"
+  local system_prompt="${SYSTEM:-Agent Mode | Agen AI Otonom untuk Tugas Dunia Nyata. Jalankan agen AI otonom yang menjelajahi, meneliti, membuat kode, dan menyelesaikan tugas dunia nyata. Bandingkan alur kerja agen dan model terdepan. You are Hermes, an autonomous multi-agent AI assistant. Use the best available model/runtime, be accurate, take initiative on real-world tasks, and when helpful structure work as Planner → Researcher → Coder → Reviewer → Tester. Be concise but complete.}"
 
   while true; do
     hermes_read_input input "${G}You>${N} " "chat"
     [ -z "$input" ] && continue
-    [ "$input" = "exit" ] || [ "$input" = "quit" ] && break
 
-    # Commands
+    # Common slash commands. Keep these aligned with plugin suggestions.
+    case "$input" in
+      exit|quit|/exit|/quit)
+        break
+        ;;
+      /help)
+        echo -e "  ${W}Chat commands:${N}"
+        echo -e "    ${C}/best${N}              Auto-pick strongest active AI from available keys"
+        echo -e "    ${C}/model <name>${N}      Switch model"
+        echo -e "    ${C}/provider <name>${N}   Switch provider: best, openrouter, gemini, groq, gateway, cloudrun, cfai"
+        echo -e "    ${C}/system <prompt>${N}   Replace system prompt"
+        echo -e "    ${C}/clear${N}             Clear context"
+        echo -e "    ${C}/save${N}              Save chat JSON"
+        echo -e "    ${C}/plugins${N}           Show suggestion plugins"
+        echo -e "    ${C}/agent <task>${N}      Run active code agent in current workspace"
+        echo -e "    ${C}/exit${N}              Exit chat"
+        echo -e "    ${D}Tags (#planner #coder #reviewer etc.) are sent as prompt context.${N}"
+        continue
+        ;;
+      /best|/auto|/ai)
+        sel="$(_best_ai_runtime)"
+        provider="${sel%%|*}"
+        model="${sel#*|}"
+        echo -e "  ${G}✅${N} Best AI → ${C}$provider${N} / ${C}$model${N}"
+        continue
+        ;;
+      /status)
+        echo -e "  ${W}Provider:${N} $provider"
+        echo -e "  ${W}Model:${N}    $model"
+        echo -e "  ${W}Messages:${N} $(python3 -c 'import json,sys; print(len(json.loads(sys.argv[1])))' "$messages" 2>/dev/null || echo '?')"
+        continue
+        ;;
+      /plugins)
+        cmd_plugins list
+        continue
+        ;;
+      /clear)
+        messages="[]"
+        echo -e "  ${C}Chat cleared${N}"
+        continue
+        ;;
+      /save)
+        mkdir -p "$HERMES_DIR"
+        echo "$messages" > "$HERMES_DIR/chat_$(date +%s).json"
+        ok "Chat saved"
+        continue
+        ;;
+    esac
+
     if [[ "$input" == /model* ]]; then
       model="${input#/model }"
+      [ -z "$model" ] || [ "$model" = "/model" ] && model="$(_default_model_for "$provider")"
       echo -e "  ${C}Model → $model${N}"
       continue
     fi
     if [[ "$input" == /provider* ]]; then
       provider="${input#/provider }"
-      echo -e "  ${C}Provider → $provider${N}"
+      [ -z "$provider" ] || [ "$provider" = "/provider" ] && provider="best"
+      sel="$(_resolve_ai_runtime "$provider" "")"
+      provider="${sel%%|*}"
+      model="${sel#*|}"
+      echo -e "  ${C}Provider → $provider${N} / ${C}$model${N}"
       continue
     fi
     if [[ "$input" == /system* ]]; then
@@ -267,14 +409,20 @@ cmd_chat() {
       echo -e "  ${C}System prompt updated${N}"
       continue
     fi
-    if [[ "$input" == /clear ]]; then
-      messages="[]"
-      echo -e "  ${C}Chat cleared${N}"
+    if [[ "$input" == /agent* ]]; then
+      local task="${input#/agent }"
+      if [ -n "$task" ] && [ "$task" != "/agent" ]; then
+        HERMES_CODE_WORKSPACE="${HERMES_CODE_WORKSPACE:-$(pwd)}" cmd_code_agent "$task"
+      else
+        warn "Usage: /agent <task>"
+      fi
       continue
     fi
-    if [[ "$input" == /save ]]; then
-      echo "$messages" > "$HERMES_DIR/chat_$(date +%s).json"
-      ok "Chat saved"
+
+    # Unknown slash commands should not silently call the LLM as commands.
+    if [[ "$input" == /* ]]; then
+      warn "Unknown chat command: $input"
+      echo -e "  ${D}Type /help, or write normal text without leading slash.${N}"
       continue
     fi
 
@@ -286,23 +434,32 @@ msgs.append({'role':'user','content':sys.argv[2]})
 print(json.dumps(msgs))
 " "$messages" "$input" 2>/dev/null || echo "$messages")
 
-    # Call API
     printf "${Y}AI>${N} "
     local response=""
+    local oai_messages
+    oai_messages=$(python3 -c "
+import json,sys
+system=sys.argv[1]
+msgs=json.loads(sys.argv[2])
+if system:
+    msgs=[{'role':'system','content':system}] + msgs
+print(json.dumps(msgs))
+" "$system_prompt" "$messages" 2>/dev/null || echo "$messages")
 
     case "$provider" in
       groq)
         response=$(api_call POST "https://api.groq.com/openai/v1/chat/completions" \
-          "{\"model\":\"$model\",\"messages\":$messages,\"max_tokens\":4096,\"temperature\":0.7}" \
+          "{\"model\":\"$model\",\"messages\":$oai_messages,\"max_tokens\":4096,\"temperature\":0.7}" \
           "Bearer $GROQ_KEY")
         ;;
       openrouter|or)
         response=$(api_call POST "https://openrouter.ai/api/v1/chat/completions" \
-          "{\"model\":\"$model\",\"messages\":$messages,\"max_tokens\":4096}" \
+          "{\"model\":\"$model\",\"messages\":$oai_messages,\"max_tokens\":8192,\"temperature\":0.7}" \
           "Bearer $OR_KEY")
         ;;
       gemini)
-        local gemini_msgs=$(python3 -c "
+        local gemini_msgs
+        gemini_msgs=$(python3 -c "
 import json,sys
 msgs = json.loads(sys.argv[1])
 sys_prompt = sys.argv[2]
@@ -310,7 +467,7 @@ parts = []
 for m in msgs:
     r = 'model' if m['role']=='assistant' else 'user'
     parts.append({'role':r,'parts':[{'text':m['content']}]})
-body = {'contents':parts,'generationConfig':{'temperature':0.7,'maxOutputTokens':4096}}
+body = {'contents':parts,'generationConfig':{'temperature':0.7,'maxOutputTokens':8192}}
 if sys_prompt:
     body['systemInstruction'] = {'parts':[{'text':sys_prompt}]}
 print(json.dumps(body))
@@ -318,16 +475,16 @@ print(json.dumps(body))
         response=$(api_call POST \
           "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$GEMINI_KEY" \
           "$gemini_msgs" "")
-        # Parse Gemini response
-        local content=$(echo "$response" | python3 -c "
+        local content
+        content=$(echo "$response" | python3 -c "
 import json,sys
 try:
     d=json.load(sys.stdin)
     print(d['candidates'][0]['content']['parts'][0]['text'])
-except: print('Error: ' + str(sys.stdin.read())[:200])
+except Exception as e:
+    print('Error: ' + str(e))
 " 2>/dev/null)
         echo "$content"
-        # Add to messages for context (safe JSON)
         messages=$(python3 -c "
 import json,sys
 msgs = json.loads(sys.argv[1])
@@ -338,36 +495,40 @@ print(json.dumps(msgs))
         continue
         ;;
       gateway)
-        response=$(api_call POST "$GATEWAY/ai/chat" \
-          "{\"model\":\"$model\",\"messages\":$messages,\"max_tokens\":4096}" \
+        response=$(api_call POST "$GATEWAY/v1/chat/completions" \
+          "{\"model\":\"$model\",\"messages\":$oai_messages,\"max_tokens\":8192}" \
           "Bearer $TOKEN")
         ;;
       cloudrun)
-        response=$(api_call POST "$CLOUDRUN/ai/chat" \
-          "{\"model\":\"$model\",\"messages\":$messages,\"max_tokens\":4096}" \
+        response=$(api_call POST "$CLOUDRUN/v1/chat/completions" \
+          "{\"model\":\"$model\",\"messages\":$oai_messages,\"max_tokens\":8192}" \
           "Bearer $TOKEN")
         ;;
       cf|cfai)
         response=$(api_call POST "$CF_AI/chat" \
-          "{\"model\":\"@cf/meta/llama-3.3-70b-instruct-fp8-fast\",\"messages\":$messages}" \
-          "Bearer $TOKEN")
+          "{\"model\":\"$model\",\"messages\":$messages}" \
+          "Bearer ${CF_AI_TOKEN:-$TOKEN}")
+        ;;
+      *)
+        err "Provider not supported: $provider"
+        continue
         ;;
     esac
 
-    # Parse OpenAI-compatible response
-    local content=$(echo "$response" | python3 -c "
+    local content
+    content=$(echo "$response" | python3 -c "
 import json,sys
 try:
     d=json.load(sys.stdin)
     print(d['choices'][0]['message']['content'])
 except Exception as e:
-    print('Error: ' + str(e))
+    raw=sys.stdin.read()
+    print('Error: ' + str(e) + (' | ' + raw[:300] if raw else ''))
 " 2>/dev/null || echo "$response" | head -c 500)
 
     echo "$content"
     echo ""
 
-    # Add assistant message to context (safe JSON)
     messages=$(python3 -c "
 import json,sys
 msgs = json.loads(sys.argv[1])
@@ -384,8 +545,12 @@ cmd_ask() {
   local question="$*"
   [ -z "$question" ] && { err "Usage: hermes ask <question>"; return 1; }
 
-  local provider="${PROVIDER:-groq}"
-  local model="${MODEL:-$(_default_model_for "$provider")}"
+  local provider="${PROVIDER:-best}"
+  local model="${MODEL:-}"
+  local sel
+  sel="$(_resolve_ai_runtime "$provider" "$model")"
+  provider="${sel%%|*}"
+  model="${sel#*|}"
   local safe_q
   safe_q=$(json_escape "$question")
 
@@ -423,8 +588,12 @@ cmd_ask() {
 cmd_ask_internal() {
   local question="$1"
   local system="${2:-You are an expert programmer.}"
-  local provider="${PROVIDER:-groq}"
-  local model="${MODEL:-$(_default_model_for "$provider")}"
+  local provider="${PROVIDER:-best}"
+  local model="${MODEL:-}"
+  local sel
+  sel="$(_resolve_ai_runtime "$provider" "$model")"
+  provider="${sel%%|*}"
+  model="${sel#*|}"
   local safe_q
   safe_q=$(json_escape "$question")
   local safe_sys
@@ -767,6 +936,10 @@ _hermes_builtin_suggestions() {
 /exit
 /quit
 /help
+/best
+/auto
+/ai
+/plugins
 /clear
 /save
 /model
@@ -798,6 +971,9 @@ _hermes_builtin_suggestions() {
 /open
 /ask
 #agent
+#agent-mode
+#autonomous-agent
+#best-ai
 #multi-agent
 #researcher
 #planner
@@ -818,9 +994,9 @@ _hermes_builtin_suggestions() {
 #security
 #performance
 #docs
+#real-world-tasks
 EOF
 }
-
 cmd_plugins() {
   local action="${1:-list}"
   shift 2>/dev/null || true
@@ -837,11 +1013,17 @@ cmd_plugins() {
 /crew
 /research
 /plan
+/best
+/ai
+/plugins
 /reviewer
 /coder
 /tester
 /memory
 /context
+#agent-mode
+#autonomous-agent
+#best-ai
 #multi-agent
 #researcher
 #planner
@@ -967,7 +1149,7 @@ priority = []
 if mode in ("coding", "code"):
     priority = ["/agent","/file","/preview","/run","/sh","/fix","/debug","/refactor","/test","/apply","/venv","/lang"]
 elif mode in ("studio", "chat"):
-    priority = ["/model","/provider","/system","/clear","/save","/agent","/crew","/research","/plan"]
+    priority = ["/best","/ai","/model","/provider","/system","/plugins","/clear","/save","/agent","/crew","/research","/plan"]
 
 seen = set()
 ordered = []
@@ -1826,15 +2008,29 @@ cmd_update() {
 
   info "Fetching latest from GitHub ($branch)..."
 
+  local auth_args=()
+  if [ -n "$GITHUB_PAT" ]; then
+    auth_args=(-H "Authorization: Bearer $GITHUB_PAT")
+    local repo_meta repo_private
+    repo_meta=$(curl -fsSL --max-time 15 "${auth_args[@]}" "https://api.github.com/repos/$GH_USER/hermes-agent-cli" 2>/dev/null || true)
+    repo_private=$(printf "%s" "$repo_meta" | python3 -c "import json,sys;
+try: print('private' if json.load(sys.stdin).get('private') else 'public')
+except Exception: print('unknown')" 2>/dev/null)
+    [ "$repo_private" = "private" ] && info "Repository is private — using GITHUB_PAT authenticated update"
+  else
+    warn "GITHUB_PAT not set; private repository update may fail"
+  fi
+
   # Prefer GitHub API raw endpoint because raw.githubusercontent.com can be CDN-cached
   # for a short time after push. This makes `hermes update` work without manual retry.
   curl -fsSL --max-time 30 \
+    "${auth_args[@]}" \
     -H "Accept: application/vnd.github.v3.raw" \
     "$api_url" \
     -o "$tmp" 2>/dev/null || true
 
   if [ ! -s "$tmp" ]; then
-    curl -fsSL --max-time 30 -H "Cache-Control: no-cache" -o "$tmp" "${url}?cb=$(date +%s)" 2>/dev/null || true
+    curl -fsSL --max-time 30 "${auth_args[@]}" -H "Cache-Control: no-cache" -o "$tmp" "${url}?cb=$(date +%s)" 2>/dev/null || true
   fi
 
   if [ ! -s "$tmp" ] && command -v wget >/dev/null 2>&1; then
@@ -1843,6 +2039,7 @@ cmd_update() {
 
   if [ ! -s "$tmp" ]; then
     err "Could not fetch update from GitHub"
+    warn "If repo is private, run: export GITHUB_PAT=<token-with-repo-read> or hermes setup"
     rm -f "$tmp"
     return 1
   fi
@@ -1926,9 +2123,15 @@ cmd_update() {
 /crew
 /research
 /plan
+/best
+/ai
+/plugins
 /reviewer
 /coder
 /tester
+#agent-mode
+#autonomous-agent
+#best-ai
 #multi-agent
 #researcher
 #planner
@@ -2699,6 +2902,7 @@ cmd_help() {
   echo -e "    ${BOLD}agent${N} <task>                Active multi-step code agent (read/write/run)"
   echo -e "    ${BOLD}venv${N} [init|status|pip]      Manage Hermes python3_venv for responsive syntax"
   echo -e "    ${BOLD}plugins${N} [init|list|add]     Command suggestions for / and # in chat"
+  echo -e "    ${BOLD}ai-best${N}                    Show selected best AI from available keys"
   echo -e "    ${BOLD}studio${N} [open|chat|status]  AI Studio (projects + Gemini chat)"
   echo -e "    ${BOLD}ask${N} <question>             Quick question (non-interactive)"
   echo -e "    ${BOLD}code${N} <description>         Generate code from description"
@@ -2729,8 +2933,8 @@ cmd_help() {
   echo -e "    ${BOLD}links${N}                      Show all URLs"
   echo -e "    ${BOLD}update${N}                     Update CLI from GitHub"
   echo ""
-  echo -e "  ${D}Providers: groq, openrouter, gemini, gateway, cloudrun, cfai${N}"
-  echo -e "  ${D}Set: export PROVIDER=groq MODEL=llama-3.3-70b-versatile${N}"
+  echo -e "  ${D}Providers: best, openrouter, gemini, groq, gateway, cloudrun, cfai${N}"
+  echo -e "  ${D}Default: PROVIDER=best auto-selects the strongest active AI from all keys.${N}"
 }
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -2745,6 +2949,7 @@ case "${1:-help}" in
   agent|code-agent) shift; cmd_code_agent "$@" ;;
   venv|python3_venv) shift; cmd_venv "$@" ;;
   plugins|plugin) shift; cmd_plugins "$@" ;;
+  ai-best|best-ai|ai) shift; cmd_ai_best_status "$@" ;;
   studio)      shift; cmd_studio "$@" ;;
   code)        shift; cmd_code "$@" ;;
   crawl)       shift; cmd_crawl "$@" ;;
