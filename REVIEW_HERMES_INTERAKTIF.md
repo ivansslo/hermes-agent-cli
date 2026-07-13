@@ -1,7 +1,7 @@
 # Review Hermes Interaktif — Code Commands + Active Agent
 
 Tanggal review: 2026-07-13
-Repo: `hermes-agent-cli`
+Repo: `roc-agentsroute`
 Versi hasil update: `v5.5.0 Omni`
 
 ## Ringkasan
@@ -173,12 +173,12 @@ hermes venv pip numpy pandas pytest
 Sudah dites:
 
 ```bash
-bash -n hermes-agent-cli/hermes
-bash -n hermes-agent-cli/install.sh
-DISABLE_OWNER_CHECK=true bash hermes-agent-cli/hermes version
-DISABLE_OWNER_CHECK=true bash hermes-agent-cli/hermes venv init
-DISABLE_OWNER_CHECK=true bash hermes-agent-cli/hermes venv status
-DISABLE_OWNER_CHECK=true bash hermes-agent-cli/hermes coding
+bash -n roc-agentsroute/hermes
+bash -n roc-agentsroute/install.sh
+DISABLE_OWNER_CHECK=true bash roc-agentsroute/hermes version
+DISABLE_OWNER_CHECK=true bash roc-agentsroute/hermes venv init
+DISABLE_OWNER_CHECK=true bash roc-agentsroute/hermes venv status
+DISABLE_OWNER_CHECK=true bash roc-agentsroute/hermes coding
 ```
 
 Hasil:
@@ -230,7 +230,7 @@ Fitur Hermes interaktif sudah siap untuk dicoba dan dipush setelah security clea
 Recommended commit:
 
 ```bash
-cd /home/user/hermes-agent-cli
+cd /home/user/roc-agentsroute
 git add hermes install.sh README.md REVIEW_HERMES_INTERAKTIF.md
 git commit -m "add interactive code commands and python3_venv runtime"
 git push
