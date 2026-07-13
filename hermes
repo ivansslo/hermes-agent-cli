@@ -77,12 +77,14 @@ MONGO_URI="${MONGO_URI:-}"
 VOYAGE_KEY="${VOYAGE_KEY:-${VOYAGE_API_KEY:-}}"
 SOLACE_URL="${SOLACE_URL:-}"
 ISDOCKER_GEMINI_KEY="${ISDOCKER_GEMINI_KEY:-}"
+OPENAI_KEY="${OPENAI_KEY:-${OPENAI_API_KEY:-}}"
 MODEL="${MODEL:-}"
 PROVIDER="${PROVIDER:-best}"
 
 # ─── Auto-select model per provider ──────────────────────────────────────────
 _default_model_for() {
   case "$1" in
+    openai|oai)   echo "gpt-4o" ;;
     openrouter|or) echo "anthropic/claude-sonnet-4-5" ;;
     # Prefer Flash as default: free-tier keys often have higher quota than Pro.
     gemini)       echo "gemini-2.5-flash" ;;
@@ -97,6 +99,7 @@ _default_model_for() {
 
 _provider_ready() {
   case "$1" in
+    openai|oai)   [ -n "$OPENAI_KEY" ] ;;
     openrouter|or) [ -n "$OR_KEY" ] ;;
     gemini)        [ -n "$GEMINI_KEY" ] ;;
     groq)          [ -n "$GROQ_KEY" ] ;;
@@ -108,16 +111,19 @@ _provider_ready() {
 }
 
 _best_ai_runtime() {
-  # Ranking: choose the strongest configured provider/key automatically.
+  # Ranking: Groq (free/fast) → OpenAI → OpenRouter → Gemini → Gateway → CloudRun → CF
   # Override with PROVIDER=<name> MODEL=<model> when a specific runtime is desired.
+  if _provider_ready groq; then
+    echo "groq|$(_default_model_for groq)"; return
+  fi
+  if _provider_ready openai; then
+    echo "openai|$(_default_model_for openai)"; return
+  fi
   if _provider_ready openrouter; then
     echo "openrouter|$(_default_model_for openrouter)"; return
   fi
   if _provider_ready gemini; then
     echo "gemini|$(_default_model_for gemini)"; return
-  fi
-  if _provider_ready groq; then
-    echo "groq|$(_default_model_for groq)"; return
   fi
   if _provider_ready gateway; then
     echo "gateway|$(_default_model_for gateway)"; return
@@ -160,7 +166,7 @@ cmd_ai_best_status() {
   fi
   echo ""
   echo -e "  ${Y}Available keys:${N}"
-  for item in "openrouter:OR_KEY" "gemini:GEMINI_KEY" "groq:GROQ_KEY" "gateway:TOKEN" "cloudrun:TOKEN" "cfai:CF_AI_TOKEN/TOKEN"; do
+  for item in "groq:GROQ_KEY" "openai:OPENAI_KEY" "openrouter:OR_KEY" "gemini:GEMINI_KEY" "gateway:TOKEN" "cloudrun:TOKEN" "cfai:CF_AI_TOKEN/TOKEN"; do
     local name="${item%%:*}" key="${item#*:}"
     if _provider_ready "$name"; then
       printf "    ${G}✅${N} %-12s %s
@@ -270,6 +276,7 @@ cmd_setup() {
   > "$HERMES_KEYS.tmp"
   read_input "Gateway Token" TOKEN ""
   read_input "Groq API Key" GROQ_KEY ""
+  read_input "OpenAI API Key" OPENAI_KEY ""
   read_input "OpenRouter Key" OR_KEY ""
   read_input "Gemini Key" GEMINI_KEY ""
   read_input "GitHub PAT" GITHUB_PAT ""
@@ -304,7 +311,7 @@ cmd_config() {
   echo -e "  ${W}AI Studio:${N}  $AI_STUDIO_URL"
   echo ""
   echo -e "  ${BOLD}Keys:${N}"
-  for k in TOKEN GROQ_KEY OR_KEY GEMINI_KEY CF_TOKEN CF_ACCOUNT GITHUB_PAT MONGO_URI VOYAGE_KEY SOLACE_URL; do
+  for k in TOKEN GROQ_KEY OPENAI_KEY OR_KEY GEMINI_KEY CF_TOKEN CF_ACCOUNT GITHUB_PAT MONGO_URI VOYAGE_KEY SOLACE_URL; do
     local v="${!k:-}"
     if [ -n "$v" ]; then
       printf "  ${G}✅${N} %-18s ${D}%s...${N}\n" "$k" "${v:0:16}"
@@ -353,7 +360,7 @@ cmd_chat() {
         echo -e "  ${W}Chat commands:${N}"
         echo -e "    ${C}/best${N}              Auto-pick strongest active AI from available keys"
         echo -e "    ${C}/model <name>${N}      Switch model"
-        echo -e "    ${C}/provider <name>${N}   Switch provider: best, openrouter, gemini, groq, gateway, cloudrun, cfai"
+        echo -e "    ${C}/provider <name>${N}   Switch provider: best, groq, openai, openrouter, gemini, gateway, cloudrun, cfai"
         echo -e "    ${C}/system <prompt>${N}   Replace system prompt"
         echo -e "    ${C}/clear${N}             Clear context"
         echo -e "    ${C}/save${N}              Save chat JSON"
@@ -455,6 +462,11 @@ print(json.dumps(msgs))
         response=$(api_call POST "https://api.groq.com/openai/v1/chat/completions" \
           "{\"model\":\"$model\",\"messages\":$oai_messages,\"max_tokens\":4096,\"temperature\":0.7}" \
           "Bearer $GROQ_KEY")
+        ;;
+      openai|oai)
+        response=$(api_call POST "https://api.openai.com/v1/chat/completions" \
+          "{\"model\":\"$model\",\"messages\":$oai_messages,\"max_tokens\":8192,\"temperature\":0.7}" \
+          "Bearer $OPENAI_KEY")
         ;;
       openrouter|or)
         response=$(api_call POST "https://openrouter.ai/api/v1/chat/completions" \
@@ -609,6 +621,12 @@ cmd_ask() {
   safe_q=$(json_escape "$question")
 
   case "$provider" in
+    openai|oai)
+      local resp=$(api_call POST "https://api.openai.com/v1/chat/completions" 
+        "{"model":"$model","messages":[{"role":"user","content":$safe_q}],"max_tokens":4096}" 
+        "Bearer $OPENAI_KEY")
+      echo "$resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['choices'][0]['message']['content'])" 2>/dev/null || echo "$resp" | head -c 500
+      ;;
     gemini)
       local resp=$(curl -s --max-time 20 -X POST \
         "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$GEMINI_KEY" \
@@ -655,6 +673,12 @@ cmd_ask_internal() {
 
   local resp=""
   case "$provider" in
+    openai|oai)
+      resp=$(api_call POST "https://api.openai.com/v1/chat/completions" 
+        "{"model":"$model","messages":[{"role":"system","content":$safe_sys},{"role":"user","content":$safe_q}],"max_tokens":8192,"temperature":0.3}" 
+        "Bearer $OPENAI_KEY")
+      echo "$resp" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['choices'][0]['message']['content'])" 2>/dev/null || echo "$resp" | head -c 1000
+      ;;
     gemini)
       resp=$(curl -s --max-time 30 -X POST \
         "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$GEMINI_KEY" \
@@ -1854,6 +1878,20 @@ cmd_models() {
         -H "Authorization: Bearer $GROQ_KEY" -H "Content-Type: application/json" \
         -d "{\"model\":\"$m\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],\"max_tokens\":1}" \
         "https://api.groq.com/openai/v1/chat/completions" 2>/dev/null)
+      [ "$code" = "200" ] && echo -e "${G}✅${N}" || echo -e "${R}❌ $code${N}"
+    else
+      echo -e "${D}(no key)${N}"
+    fi
+  done
+
+  echo ""
+  echo -e "  ${M}🧠 OpenAI (Direct):${N}"
+  for m in "gpt-4o" "gpt-4o-mini" "gpt-4.1" "gpt-4.1-mini" "gpt-4.1-nano" "o3" "o3-mini" "o4-mini"; do
+    printf "    %-45s" "$m"
+    if [ -n "$OPENAI_KEY" ]; then
+      local code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 \
+        -H "Authorization: Bearer $OPENAI_KEY" -H "Content-Type: application/json" \
+        "https://api.openai.com/v1/models" 2>/dev/null)
       [ "$code" = "200" ] && echo -e "${G}✅${N}" || echo -e "${R}❌ $code${N}"
     else
       echo -e "${D}(no key)${N}"
