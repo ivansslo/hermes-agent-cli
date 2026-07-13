@@ -1,4 +1,4 @@
-# ⚡ Hermes Agent CLI v5.0.0 "Omni"
+# ⚡ Hermes Agent CLI v5.6.0 "Omni"
 
 **Full AI Agent CLI for Termux** — integrates 100 repositories into one unified command-line tool.
 
@@ -15,6 +15,10 @@ hermes setup              # Interactive API key setup
 hermes chat [model]       # Interactive AI chat (Groq/OpenRouter/Gemini/CF AI)
 hermes ask <question>     # Quick question (non-interactive)
 hermes code <desc>        # Generate code from description
+hermes coding             # Interactive code commands (/run /agent /venv /sh)
+hermes agent <task>       # Active multi-step coding agent (read/write/run)
+hermes venv init          # Create ~/.hermes/python3_venv + rich/pygments
+hermes plugins init       # Enable / and # suggestions in interactive chat
 hermes crew [topic]       # CrewAI multi-agent research
 hermes embed <text>       # Voyage AI embedding
 hermes crawl <url>        # Crawl URL to markdown
@@ -27,6 +31,62 @@ hermes push [dir] [msg]   # Push to GitHub
 hermes termux [action]    # Termux system tools
 hermes links              # Show all URLs
 hermes update             # Update CLI
+```
+
+
+## ⌘ Code Commands + python3_venv
+
+Hermes CLI now includes an interactive coding mode inspired by `hermes-agent` slash commands:
+
+```bash
+hermes venv init                 # create ~/.hermes/python3_venv
+hermes coding                    # enter interactive code mode
+```
+
+Inside `hermes coding`:
+
+```text
+/agent <complex task>             active AI agent: inspect files, write changes, run tests
+/file <path>                      load a file into context
+/preview                          syntax-highlight current code (Pygments if venv exists)
+/run                              run current code (Python uses python3_venv)
+/sh <command>                     run shell commands in the workspace
+/refactor | /fix | /debug | /test AI code actions
+/apply [path]                     save last AI code block
+/venv init|status|pip <pkg>       manage python3_venv
+```
+
+Set runtime options if needed:
+
+```bash
+export HERMES_CODE_WORKSPACE=$PWD
+export HERMES_AGENT_STEPS=10
+export HERMES_RUN_TIMEOUT=120
+```
+
+
+## 🔌 Plugin Suggestions for `/` and `#`
+
+Interactive prompts now use `prompt_toolkit` when `python3_venv` is available. Type `/` or `#` in `hermes chat`, `hermes coding`, or `hermes studio` to see command/tag suggestions.
+
+```bash
+hermes venv init
+hermes plugins init
+hermes chat
+```
+
+Custom suggestions:
+
+```bash
+hermes plugins add /deploy-check
+hermes plugins add '#security'
+hermes plugins list
+```
+
+Plugin files are stored in:
+
+```text
+~/.hermes/plugins/*.commands
 ```
 
 ## 🏗️ Projects Integrated
@@ -71,4 +131,4 @@ hermes status
 
 ---
 
-by Ivan Ssl (ivansslo) — v5.0.0 "Omni"
+by Ivan Ssl (ivansslo) — v5.6.0 "Omni"
