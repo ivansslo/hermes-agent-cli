@@ -125,7 +125,7 @@ All 14 domains route through **roc-site** unified router:
 
 | Project | Description |
 |---|---|
-| [⭐ rocspace](https://github.com/ivansslo/rocspace) | **Monorepo** — v17.1.0, Unified Router (Gateway, Site, Shared) |
+| [⭐ rocspace](https://github.com/ivansslo/rocspace) | **Monorepo** — v17.1.1, Unified Router (Gateway, Site, Shared) |
 | roc-containers | Container manager & CLI v1.2.0 |
 | ai-vitality | AI Studio + Firebase |
 | roadfx-full-stack | Express + Firebase Hosting |
@@ -139,7 +139,7 @@ All 14 domains route through **roc-site** unified router:
 
 | Service | Provider | Region | Status |
 |---|---|---|---|
-| RocSpace Gateway v17.1.0 | Cloudflare Workers | Global | ✅ Active |
+| RocSpace Gateway v17.1.1 | Cloudflare Workers | Global | ✅ Active |
 | roc-site (Unified Router) | Cloudflare Workers | Global | ✅ Active (14 domains) |
 | Oracle VM (roc-vm) | OCI | Singapore | ✅ Running |
 | Cloud Run (ai-vitality) | Google Cloud | us-west1 | ✅ Active |
