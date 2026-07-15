@@ -1998,7 +1998,7 @@ cmd_clone() {
   if [ -z "$repo" ]; then
     echo -e "  ${W}Key repositories:${N}\n"
     local repos=(
-      "Solace-Hermes-Project:Main gateway (CF Workers)"
+      "rocspace:RocSpace Monorepo (Gateway + Site + Shared)"
       "roadfx-full-stack:Full-stack platform + Firebase"
       "rocspace:RocSpace Monorepo (Gateway + Site + Shared)"
       "ai-vitality:AI Studio app (2 branches)"
@@ -2175,7 +2175,7 @@ cmd_links() {
   echo ""
   echo -e "  ${P}GitHub:${N}"
   echo -e "    Profile:     https://github.com/$GH_USER"
-  echo -e "    Hermes:      https://github.com/$GH_USER/Solace-Hermes-Project"
+  echo -e "    Hermes:      https://github.com/$GH_USER/rocspace"
   echo -e "    RoadFX:      https://github.com/$GH_USER/roadfx-full-stack"
   echo -e "    AI-Vitality: https://github.com/$GH_USER/ai-vitality"
   echo ""
