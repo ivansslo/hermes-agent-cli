@@ -2026,7 +2026,7 @@ cmd_clone() {
   fi
 
   if [ "$repo" = "all" ]; then
-    local all_repos=("Solace-Hermes-Project" "roadfx-full-stack" "roadfx-ai-stack" "ai-vitality" "roc-agentsroute" "codex-master-ai-api" "solace-crewai-cli")
+    local all_repos=("rocspace" "roc-containers" "roc-agentsroute" "ai-vitality" "lsmod" "clawdex-mobile")
     for r in "${all_repos[@]}"; do
       info "Cloning $r..."
       git clone --depth 1 "https://x-access-token:${GITHUB_PAT}@github.com/${GH_USER}/${r}.git" "$HERMES_WORKSPACE/$r" 2>/dev/null && ok "$r cloned" || warn "$r failed or exists"
