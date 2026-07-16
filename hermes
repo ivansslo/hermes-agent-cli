@@ -11,7 +11,7 @@
 
 set -uo pipefail
 
-VERSION="5.13.0"
+VERSION="5.13.1"
 CODENAME="Oracle"
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
@@ -51,6 +51,8 @@ VM_NOVNC_URL="http://$VM_IP/vm/novnc/"              # noVNC console
 VM_TAILSCALE_IP="${VM_TAILSCALE_IP:-100.93.139.73}" # tailnet (butuh tailscale aktif)
 VM_SSH_USER="${VM_SSH_USER:-ubuntu}"
 AI_STUDIO_WVC_LABEL="webvirtcloud.ai.studio"        # alias yang diminta user
+AI_STUDIO_AG_LABEL="antigravity.ai.studio"          # label panel Antigravity IDE (node HP + Oracle VM)
+AG_NOVNC_PORT="${AG_NOVNC_PORT:-6905}"              # port noVNC/web Antigravity @ Oracle VM
 
 # ─── Antigravity IDE (Google · build resmi linux/ARM64) ─────────────────────
 # Dipasang via 'hermes antigravity install' — download pinned URL + verifikasi
@@ -433,6 +435,10 @@ except Exception: pass' | sed "s/▸/${C}▸${N}/"
         fi
         echo ""
       fi
+      echo -e "  ${BOLD}🧠 Antigravity IDE${N} ${D}(label: $AI_STUDIO_AG_LABEL)${N}:"
+      _vm_probe "Node HP (web :$AG_VNC_PORT)"     "http://localhost:$AG_VNC_PORT/" || true
+      _vm_probe "Node VM (noVNC :$AG_NOVNC_PORT)" "http://$VM_IP:$AG_NOVNC_PORT/vnc.html" || true
+      echo ""
       echo -e "  ${D}Aksi cepat: hermes vm console | wvc | kuma | monitor | novnc | ssh | tailscale${N}"
       ;;
     console|open) _vm_open "$VM_CONSOLE_URL" ;;
@@ -3508,7 +3514,7 @@ _ag_install() {  # [--force] [<url-atau-path-lokal>]
 }
 
 _ag_status() {
-  echo -e "${BOLD}🧩 Antigravity IDE — status${N}"
+  echo -e "${BOLD}🧩 Antigravity IDE — status${N}  ${D}(label: $AI_STUDIO_AG_LABEL)${N}"
   echo -e "  ${W}Build pinned:${N} v$AG_VERSION (linux-arm)"
   echo -e "  ${W}URL:${N}          $AG_URL"
   echo -e "  ${W}Updater resmi:${N} $AG_UPDATER_MANIFEST"
