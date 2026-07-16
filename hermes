@@ -3243,6 +3243,46 @@ with open(sys.argv[1], 'w') as f: f.write(content)
 # ═════════════════════════════════════════════════════════════════════════════
 #  HELP
 # ═════════════════════════════════════════════════════════════════════════════
+# ═════════════════════════════════════════════════════════════════════════════
+#  DASHBOARD — Web UI (Firebase Hosting)
+# ═════════════════════════════════════════════════════════════════════════════
+cmd_dashboard() {
+  local action="${1:-url}"
+  shift 2>/dev/null || true
+  local host_url="https://${FIREBASE_PROJECT}.web.app"
+  case "$action" in
+    url|open)
+      header
+      echo -e "${BOLD}📊 Hermes Dashboard${N} — Firebase Hosting\n"
+      echo -e "  ${C}$host_url${N}"
+      echo -e "  ${D}mirror: https://${FIREBASE_PROJECT}.firebaseapp.com${N}\n"
+      command -v termux-open-url >/dev/null 2>&1 && { termux-open-url "$host_url"; return 0; }
+      command -v xdg-open >/dev/null 2>&1 && { xdg-open "$host_url" 2>/dev/null; return 0; }
+      echo -e "  ${D}Deploy: hermes dashboard deploy${N}"
+      ;;
+    deploy)
+      header
+      echo -e "${BOLD}📊 Deploy Dashboard → Firebase Hosting${N}\n"
+      mkdir -p "$HERMES_WORKSPACE"
+      local base="https://raw.githubusercontent.com/ivansslo/roc-agentsroute/main/dashboard"
+      info "Mengunduh dashboard files..."
+      if curl -fsSL -o "$HERMES_WORKSPACE/index.html" "$base/index.html" \
+      && curl -fsSL -o "$HERMES_WORKSPACE/firebase.json" "$base/firebase.json"; then
+        ok "Files → $HERMES_WORKSPACE"
+      else
+        err "Gagal unduh dashboard dari GitHub"
+        return 1
+      fi
+      cmd_firebase deploy
+      echo ""
+      echo -e "  ${G}Live:${N} ${C}$host_url${N}"
+      ;;
+    *)
+      echo -e "Usage: ${BOLD}hermes dashboard${N} [url|open|deploy]"
+      ;;
+  esac
+}
+
 cmd_help() {
   header
   echo -e "${BOLD}📖 Commands${N}\n"
@@ -3264,6 +3304,7 @@ cmd_help() {
   echo -e "  ${B}Web & Data:${N}"
   echo -e "    ${BOLD}crawl${N} <url>                Crawl URL to markdown"
   echo -e "    ${BOLD}firebase${N} [status|save|admin] Firebase Firestore (REST atau Admin SDK)"
+  echo -e "    ${BOLD}dashboard${N} [url|open|deploy] Web dashboard UI (Firebase Hosting)"
   echo ""
   echo -e "  ${G}Models & Status:${N}"
   echo -e "    ${BOLD}models${N}                     List all available AI models"
@@ -3446,6 +3487,7 @@ case "${1:-help}" in
   data)        shift; cmd_data "$@" ;;
   isdocker)    shift; cmd_isdocker "$@" ;;
   fix)         shift; cmd_fix "$@" ;;
+  dashboard|dash) shift; cmd_dashboard "$@" ;;
   help|--help|-h) cmd_help ;;
   version|--version|-v) echo "Hermes v$VERSION ($CODENAME)" ;;
   *)           err "Unknown command: $1"; cmd_help ;;
