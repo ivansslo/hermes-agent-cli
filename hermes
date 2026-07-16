@@ -361,7 +361,7 @@ _vm_open() {  # buka URL di browser (Termux / desktop / fallback echo)
   if command -v termux-open-url &>/dev/null; then
     termux-open-url "$url" && ok "Opened: $url"
   elif command -v xdg-open &>/dev/null; then
-    xdg-open "$url" &>/dev/null && ok "Opened: $url"
+    if xdg-open "$url" &>/dev/null; then ok "Opened: $url"; else echo -e "  ${C}$url${N}"; fi
   else
     echo -e "  ${C}$url${N}"
   fi
