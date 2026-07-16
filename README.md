@@ -1,8 +1,8 @@
-# ⚡ Hermes Agent CLI v5.12.0 "Oracle"
+# ⚡ Hermes Agent CLI v5.13.0 "Oracle"
 
 **Full AI Agent CLI for Termux** — integrates 100 repositories into one unified command-line tool.
 
-> **v5.12.0** — Oracle VM/WebVirtCloud integration (`hermes vm` + dashboard panel, alias `webvirtcloud.ai.studio`). **v5.11.x** — Firebase Admin SDK, built-in web config, Hermes Dashboard, AI Studio app panel (see [Changelog](#-changelog)).
+> **v5.13.0** — Google **Antigravity IDE** linux/ARM64: installer + verifikasi MD5/size + launcher GUI/headless-VNC (`hermes antigravity`). **v5.12.0** — Oracle VM/WebVirtCloud integration (`hermes vm` + dashboard panel, alias `webvirtcloud.ai.studio`). **v5.11.x** — Firebase Admin SDK, built-in web config, Hermes Dashboard, AI Studio app panel (see [Changelog](#-changelog)).
 
 ## 🚀 Quick Install (Termux)
 
@@ -30,6 +30,7 @@ hermes crawl <url>        # Crawl URL to markdown
 hermes firebase [action]  # Firebase Firestore operations
 hermes dashboard [url|open|deploy] # Web dashboard (AI Studio + Oracle VM panels)
 hermes vm [status]        # Oracle VM WebVirtCloud (alias: webvirtcloud.ai.studio)
+hermes antigravity [...]  # Google Antigravity IDE (install/launch/vnc — linux/ARM64)
 hermes models             # List all AI models
 hermes status             # Full system health check
 hermes deploy [worker]    # Deploy to existing CF Workers (roc-site, hermes-cloudflare)
@@ -141,6 +142,7 @@ All 14 domains route through **roc-site** unified router:
 | AIS-DEV (AI Studio applet) | `https://ais-dev-jqizmthqeu2hdc4e3pgh63-70765440683.asia-east1.run.app` ✅ *live (updated 2026-07-16)* |
 | Cloud Run (legacy) | `https://ai-vitality-819208434965.us-west1.run.app` ⚠️ *down (billing)* |
 | Oracle VM | `http://161.118.253.28` |
+| Antigravity IDE (VNC) | `localhost:5905` di Oracle VM — via `hermes antigravity vnc` |
 | Uptime Kuma | `http://161.118.253.28:3001` |
 | Solace | `mr-connection-mwc1f9igml1.messaging.solace.cloud` |
 
@@ -198,9 +200,33 @@ hermes status
 
 ---
 
-by Ivan Ssl (ivansslo) — v5.12.0 "Oracle"
+by Ivan Ssl (ivansslo) — v5.13.0 "Oracle"
 
 ## 🆕 Changelog
+
+### v5.13.0 — Antigravity IDE linux/ARM64 (2026-07-16)
+
+Integrasi **Google Antigravity IDE** (build resmi `2.3.0-5214728084127744`,
+`linux-arm`/aarch64, ±154 MB → ±473 MB ter-extract) ke dalam CLI:
+
+- **`hermes antigravity`** (alias: `ag`, `ide`) — subcommand lengkap:
+  - `install [--force] [url|/path/lokal.tar.gz]` — download URL pinned →
+    **verifikasi content-length + MD5 GCS** → extract ke
+    `$PREFIX/opt/Antigravity-arm64` (Termux) / `~/.local/opt/…` (Linux) →
+    symlink `antigravity` di bin. Path lokal/`file://` dipakai **langsung
+    tanpa copy** (hemat tmpfs — cocok utk hasil `aria2` di Termux).
+  - `status` — versi terinstall + runtime check (arch / glibc aarch64 /
+    DISPLAY / xvfb-run·x11vnc·Xvnc) + URL manifest auto-update resmi.
+  - `launch` — via DISPLAY; headless otomatis `xvfb-run --no-sandbox`.
+  - `vnc [port] | stop` — headless VNC localhost (Xvfb+x11vnc / Xvnc
+    TigerVNC), default port **5905** (konvensi lama roc-antigravity).
+  - `update`, `uninstall`, `url`, `help`.
+- Guard runtime sopan: arsitektur non-aarch64 & glibc interpreter hilang
+  ditolak di `launch`/`vnc` (Termux native diarahkan ke `proot-distro`;
+  target utama **Oracle VM** aarch64) — `install` tetap bisa utk inspeksi.
+- Env override: `ANTIGRAVITY_VERSION · ANTIGRAVITY_URL · ANTIGRAVITY_HOME ·
+  ANTIGRAVITY_FLAGS · AG_VNC_PORT`.
+- Fix internal: guard variabel `set -u` pada `_ag_vnc` (tanpa argumen).
 
 ### v5.12.0 — Oracle VM Integration (2026-07-16)
 
