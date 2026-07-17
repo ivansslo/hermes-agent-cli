@@ -30,6 +30,7 @@ hermes crawl <url>        # Crawl URL to markdown
 hermes firebase [action]  # Firebase Firestore operations
 hermes dashboard [url|open|deploy] # Web dashboard (AI Studio + Oracle VM panels)
 hermes vm [status]        # Oracle VM WebVirtCloud (alias: webvirtcloud.ai.studio)
+hermes oci [status|enable|endpoint] # OCI private model ROCSPACE-INITIAL
 hermes antigravity [...]  # Google Antigravity IDE (install/launch/vnc — linux/ARM64)
 hermes models             # List all AI models
 hermes status             # Full system health check
@@ -201,6 +202,23 @@ hermes status
 ---
 
 by Ivan Ssl (ivansslo) — v5.13.0 "Oracle"
+
+## ☁️ OCI private model — ROCSPACE-INITIAL
+
+`hermes oci` prepares a private Ollama model on the Oracle VM.
+
+```bash
+hermes oci status
+OCI_SSH_KEY=~/.ssh/oci_key hermes oci enable
+hermes oci endpoint
+```
+
+- Base model: `qwen2.5:1.5b`
+- Personal model ID: `rocspace-initial`
+- Access: loopback/Tailscale only — never expose port `11434` publicly.
+- The remote installer is in `oci/private-model-install.sh`.
+
+> The command performs no remote action unless `OCI_SSH_KEY` is set and readable. It never copies credentials to the VM.
 
 ## 🆕 Changelog
 

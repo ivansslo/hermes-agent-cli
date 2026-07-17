@@ -11,7 +11,7 @@
 
 set -uo pipefail
 
-VERSION="5.13.1"
+VERSION="5.14.0"
 CODENAME="Oracle"
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
@@ -53,6 +53,15 @@ VM_SSH_USER="${VM_SSH_USER:-ubuntu}"
 AI_STUDIO_WVC_LABEL="webvirtcloud.ai.studio"        # alias yang diminta user
 AI_STUDIO_AG_LABEL="antigravity.ai.studio"          # label panel Antigravity IDE (node HP + Oracle VM)
 AG_NOVNC_PORT="${AG_NOVNC_PORT:-6905}"              # port noVNC/web Antigravity @ Oracle VM
+
+# ─── OCI private model (ROCSPACE-INITIAL) ─────────────────────────────────
+# The model remains loopback/Tailscale-only. Never set this to a public IP.
+OCI_MODEL_NAME="${OCI_MODEL_NAME:-rocspace-initial}"
+OCI_MODEL_PORT="${OCI_MODEL_PORT:-11434}"
+OCI_MODEL_BASE="${OCI_MODEL_BASE:-qwen2.5:1.5b}"
+OCI_MODEL_TAILSCALE_URL="${OCI_MODEL_TAILSCALE_URL:-http://$VM_TAILSCALE_IP:$OCI_MODEL_PORT}"
+OCI_SSH_KEY="${OCI_SSH_KEY:-}"
+OCI_MODEL_INSTALL_URL="${OCI_MODEL_INSTALL_URL:-https://raw.githubusercontent.com/ivansslo/roc-agentsroute/main/oci/private-model-install.sh}"
 
 # ─── Antigravity IDE (Google · build resmi linux/ARM64) ─────────────────────
 # Dipasang via 'hermes antigravity install' — download pinned URL + verifikasi
@@ -469,6 +478,52 @@ except Exception: pass' | sed "s/▸/${C}▸${N}/"
     *)
       err "Unknown vm subcommand: $sub"
       echo -e "  ${D}status|console|wvc|kuma|monitor|novnc|studio|ssh|tailscale|services${N}"
+      return 1 ;;
+  esac
+}
+
+# ═════════════════════════════════════════════════════════════════════════════
+#  OCI PRIVATE MODEL — ROCSPACE-INITIAL
+# ═════════════════════════════════════════════════════════════════════════════
+cmd_oci() {
+  local sub="${1:-status}"; shift 2>/dev/null || true
+  local action="${1:-status}"; [ "$sub" = "model" ] && { shift 2>/dev/null || true; action="${1:-status}"; }
+  case "$sub:$action" in
+    status:*|model:status)
+      header
+      echo -e "${BOLD}☁️  OCI private model${N}\n"
+      echo -e "  ${W}Model:${N}      $OCI_MODEL_NAME"
+      echo -e "  ${W}Base:${N}       $OCI_MODEL_BASE"
+      echo -e "  ${W}Access:${N}     Tailscale private only"
+      echo -e "  ${W}Endpoint:${N}   $OCI_MODEL_TAILSCALE_URL ${D}(only from tailnet)${N}"
+      if command -v curl >/dev/null 2>&1; then
+        local code; code=$(curl -sS -m 5 -o /dev/null -w '%{http_code}' "$OCI_MODEL_TAILSCALE_URL/api/tags" 2>/dev/null || true)
+        code="${code:-000}"
+        if [ "$code" = "200" ]; then ok "ROCSPACE-INITIAL runtime reachable"; else warn "Runtime not reachable yet (HTTP $code)"; fi
+      fi
+      ;;
+    enable:*|model:enable)
+      if [ -z "$OCI_SSH_KEY" ] || [ ! -r "$OCI_SSH_KEY" ]; then
+        warn "OCI_SSH_KEY is not set/readable; no remote action was performed."
+        echo -e "  ${D}Set a valid private key path only in your shell:${N}"
+        echo -e "  ${C}OCI_SSH_KEY=~/.ssh/oci_key hermes oci enable${N}"
+        echo -e "  ${D}Or copy and run this on the OCI VM:${N}"
+        echo -e "  ${C}curl -fsSL $OCI_MODEL_INSTALL_URL | bash${N}"
+        return 2
+      fi
+      command -v ssh >/dev/null 2>&1 || { err "ssh is required"; return 1; }
+      echo -e "${C}Starting private OCI model installer through Tailscale...${N}"
+      # Download remotely rather than copying credentials or local configuration.
+      ssh -i "$OCI_SSH_KEY" -o BatchMode=yes -o ConnectTimeout=20 "$VM_SSH_USER@$VM_TAILSCALE_IP" \
+        "curl -fsSL '$OCI_MODEL_INSTALL_URL' | ROCSPACE_PERSONAL_MODEL='$OCI_MODEL_NAME' ROCSPACE_BASE_MODEL='$OCI_MODEL_BASE' bash"
+      ;;
+    endpoint:*|model:endpoint)
+      echo "export ROCSPACE_PRIVATE_MODEL_BASE='$OCI_MODEL_TAILSCALE_URL'"
+      echo "python3 tools/roc_autonomy.py run 'Reply only: ROCSPACE_INITIAL_OK' --model rocspace/initial"
+      ;;
+    *)
+      err "Unknown OCI command: $sub $action"
+      echo -e "  ${D}oci status | oci enable | oci endpoint | oci model [status|enable|endpoint]${N}"
       return 1 ;;
   esac
 }
@@ -3677,6 +3732,7 @@ cmd_help() {
   echo -e "    ${BOLD}firebase${N} [status|save|admin] Firebase Firestore (REST atau Admin SDK)"
   echo -e "    ${BOLD}dashboard${N} [url|open|deploy] Web dashboard UI (Firebase Hosting)"
     echo -e "    ${BOLD}vm${N} [status|console|wvc|kuma|novnc]  Oracle VM WebVirtCloud (alias: webvirtcloud.ai.studio)"
+    echo -e "    ${BOLD}oci${N} [status|enable|endpoint]            OCI private model ROCSPACE-INITIAL"
     echo -e "    ${BOLD}antigravity${N} [install|launch|vnc|status]  Google Antigravity IDE (build resmi linux/ARM64)"
   echo ""
   echo -e "  ${G}Models & Status:${N}"
@@ -3862,6 +3918,7 @@ case "${1:-help}" in
   fix)         shift; cmd_fix "$@" ;;
   dashboard|dash) shift; cmd_dashboard "$@" ;;
   vm|wvc|oracle|webvirtcloud) shift; cmd_vm "$@" ;;
+  oci|oci-model|private-model) shift; cmd_oci "$@" ;;
   antigravity|ag|ide)  shift; cmd_antigravity "$@" ;;
   help|--help|-h) cmd_help ;;
   version|--version|-v) echo "Hermes v$VERSION ($CODENAME)" ;;
