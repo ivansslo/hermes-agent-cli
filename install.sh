@@ -1,9 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ═══════════════════════════════════════════════
-#  Hermes v5.11.0 "Unified" — Installer for Termux
+#  Hermes v5.14.0 "Oracle" — Installer for Termux
 # ═══════════════════════════════════════════════
 
-echo "⚡ Installing Hermes v5.11.0 \"Unified\"..."
+echo "⚡ Installing Hermes v5.14.0 \"Oracle\"..."
 
 # Dependencies
 pkg update -y 2>/dev/null
@@ -65,10 +65,12 @@ if [ -z "${HERMES_NO_FIREBASE_CLI:-}" ] && command -v npm >/dev/null 2>&1; then
 fi
 
 echo ""
-echo "✅ Hermes v5.11.1 installed!"
+echo "✅ Hermes v5.14.0 Oracle installed!"
 echo ""
 echo "  Run: hermes setup         (configure API keys)"
 echo "  Run: hermes help          (see all commands)"
 echo "  Run: hermes status        (check connections)"
 echo "  Run: hermes chat          (interactive AI chat)"
 echo "  Run: hermes orchestrator  (autonomous agent)"
+echo "  Run: hermes oci status   (OCI private model status)"
+echo "  Run: OCI_SSH_KEY=~/.ssh/oci_key hermes oci enable"
