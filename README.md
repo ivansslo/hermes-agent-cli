@@ -209,6 +209,7 @@ by Ivan Ssl (ivansslo) — v5.13.0 "Oracle"
 
 ```bash
 hermes oci status
+hermes oci test
 OCI_SSH_KEY=~/.ssh/oci_key hermes oci enable
 hermes oci endpoint
 ```

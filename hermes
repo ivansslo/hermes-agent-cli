@@ -400,7 +400,8 @@ _vm_open() {  # buka URL di browser (Termux / desktop / fallback echo)
 _vm_probe() {  # probe URL → print status baris; return 0 jika 2xx/3xx
   local name="$1" url="$2" code ms t0
   t0=$(date +%s%N 2>/dev/null || echo 0)
-  code=$(curl -sS -m 8 -o /dev/null -w '%{http_code}' "$url" 2>/dev/null || echo "000")
+  code=$(curl -sS -m 8 -o /dev/null -w '%{http_code}' "$url" 2>/dev/null || true)
+  code="${code:-000}"
   ms=$(( ($(date +%s%N 2>/dev/null || echo 0) - t0) / 1000000 ))
   case "$code" in
     2*|3*) printf "    ${G}●${N} %-22s ${G}%s${N} ${D}(%s ms)${N}\n" "$name" "$code" "$ms" ; return 0 ;;
@@ -521,9 +522,24 @@ cmd_oci() {
       echo "export ROCSPACE_PRIVATE_MODEL_BASE='$OCI_MODEL_TAILSCALE_URL'"
       echo "python3 tools/roc_autonomy.py run 'Reply only: ROCSPACE_INITIAL_OK' --model rocspace/initial"
       ;;
+    test:*|model:test)
+      header
+      echo -e "${BOLD}🧪 OCI / Termux smoke test${N}\n"
+      _vm_probe "Canonical API health" "https://api.roadfx.biz.id/health" || true
+      _vm_probe "Canonical model catalog" "https://api.roadfx.biz.id/v1/models" || true
+      _vm_probe "Gateway provider status" "https://api.roadfx.biz.id/providers/status" || true
+      if command -v tailscale >/dev/null 2>&1; then
+        tailscale status 2>/dev/null | head -10 || warn "tailscale status unavailable"
+      else
+        warn "tailscale CLI not installed; private model test skipped"
+      fi
+      _vm_probe "Private ROCSPACE-INITIAL" "$OCI_MODEL_TAILSCALE_URL/api/tags" || true
+      echo ""
+      echo -e "  ${D}A private-model HTTP 000 is expected until OCI deployment completes.${N}"
+      ;;
     *)
       err "Unknown OCI command: $sub $action"
-      echo -e "  ${D}oci status | oci enable | oci endpoint | oci model [status|enable|endpoint]${N}"
+      echo -e "  ${D}oci status | oci enable | oci endpoint | oci test | oci model [status|enable|endpoint|test]${N}"
       return 1 ;;
   esac
 }
@@ -3732,7 +3748,7 @@ cmd_help() {
   echo -e "    ${BOLD}firebase${N} [status|save|admin] Firebase Firestore (REST atau Admin SDK)"
   echo -e "    ${BOLD}dashboard${N} [url|open|deploy] Web dashboard UI (Firebase Hosting)"
     echo -e "    ${BOLD}vm${N} [status|console|wvc|kuma|novnc]  Oracle VM WebVirtCloud (alias: webvirtcloud.ai.studio)"
-    echo -e "    ${BOLD}oci${N} [status|enable|endpoint]            OCI private model ROCSPACE-INITIAL"
+    echo -e "    ${BOLD}oci${N} [status|enable|endpoint|test]       OCI private model ROCSPACE-INITIAL"
     echo -e "    ${BOLD}antigravity${N} [install|launch|vnc|status]  Google Antigravity IDE (build resmi linux/ARM64)"
   echo ""
   echo -e "  ${G}Models & Status:${N}"
